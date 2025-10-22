@@ -170,7 +170,13 @@ app.get('/profile.html', requireAuth, async (req, res) => {
 
 // Serve Socket.IO client
 app.get('/socket.io/socket.io.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'node_modules', 'socket.io-client', 'dist', 'socket.io.js'));
+  try {
+    const clientPath = path.join(__dirname, 'node_modules', 'socket.io-client', 'dist', 'socket.io.js');
+    res.sendFile(clientPath);
+  } catch (error) {
+    console.error('Failed to serve Socket.IO client:', error);
+    res.status(500).send('Socket.IO client not available');
+  }
 });
 
 // Dashboard route (protected)
@@ -272,25 +278,34 @@ function mapAttachment(a){
   };
 }
 
-// Auth guard used elsewhere
-const requireAuth = (req,res,next)=> req.session?.user ? next() : res.status(401).json({ok:false,error:'auth_required'});
-
 // Upload -> Discord RESOURCES channel (direct upload)
 app.post('/api/resources/upload', requireAuthJson, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ ok: false, error: 'no_file' });
     if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
 
-    const ch = client.channels.cache.get(process.env.RESOURCES_CHANNEL_ID);
+    const ch = client.channels.cache.get(RESOURCES_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
 
     // If fits under 8MB, send directly. If larger, chunking.
     const MAX = 7.8 * 1024 * 1024;
-    const buf = req.file.buffer || fs.readFileSync(req.file.path);
+    let buf;
+    try {
+      buf = req.file.buffer || fs.readFileSync(req.file.path);
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      return res.status(500).json({ ok: false, error: 'file_read_error' });
+    }
+
     if (buf.length <= MAX) {
-      const msg = await ch.send({ files: [{ attachment: buf, name: req.file.originalname }] });
-      fs.unlinkSync(req.file.path);
-      return res.json({ ok: true, messageId: msg.id, name: req.file.originalname, size: buf.length });
+      try {
+        const msg = await ch.send({ files: [{ attachment: buf, name: req.file.originalname }] });
+        fs.unlinkSync(req.file.path);
+        return res.json({ ok: true, messageId: msg.id, name: req.file.originalname, size: buf.length });
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+        return res.status(500).json({ ok: false, error: 'upload_failed' });
+      }
     }
 
     // Quick chunk (simple series; can optimize later)
@@ -299,8 +314,13 @@ app.post('/api/resources/upload', requireAuthJson, upload.single('file'), async 
     const ids = [];
     for (let i = 0; i < chunks.length; i++) {
       const partName = `${req.file.originalname}.part${String(i + 1).padStart(3, '0')}`;
-      const msg = await ch.send({ files: [{ attachment: chunks[i], name: partName }] });
-      ids.push(msg.id);
+      try {
+        const msg = await ch.send({ files: [{ attachment: chunks[i], name: partName }] });
+        ids.push(msg.id);
+      } catch (error) {
+        console.error('Failed to upload chunk:', error);
+        return res.status(500).json({ ok: false, error: 'chunk_upload_failed' });
+      }
     }
     fs.unlinkSync(req.file.path);
     return res.json({ ok: true, chunked: true, parts: ids, total: chunks.length, name: req.file.originalname });
@@ -320,12 +340,17 @@ app.post('/api/upload/chunk', upload.single('chunk'), async (req, res) => {
 
     if (!client) return res.status(503).json({ ok: false, error: 'bot not available' });
 
-    const chan = await client.channels.fetch(channelId);
-    const file = new AttachmentBuilder(filePath, { name: `${filename}.part${index}` });
-    const msg = await chan.send({ content: `Chunk ${index}/${total} for ${filename}`, files: [file] });
+    try {
+      const chan = await client.channels.fetch(channelId);
+      const file = new AttachmentBuilder(filePath, { name: `${filename}.part${index}` });
+      const msg = await chan.send({ content: `Chunk ${index}/${total} for ${filename}`, files: [file] });
 
-    fs.unlinkSync(filePath);
-    return res.json({ ok: true, url: msg.attachments.first()?.url || null });
+      fs.unlinkSync(filePath);
+      return res.json({ ok: true, url: msg.attachments.first()?.url || null });
+    } catch (error) {
+      console.error('Failed to upload chunk:', error);
+      return res.status(500).json({ ok: false, error: 'chunk_upload_failed' });
+    }
   } catch (e) {
     console.error(e);
     return res.status(500).json({ ok: false, error: e.message });
@@ -341,14 +366,23 @@ app.post('/api/upload/manifest', async (req, res) => {
 
     if (!client) return res.status(503).json({ ok: false, error: 'bot not available' });
 
-    const chan = await client.channels.fetch(channelId);
-    const json = JSON.stringify({ type: 'manifest', filename, parts, ts: Date.now() }, null, 2);
-    fs.mkdirSync('uploads', { recursive: true });
-    const tmp = path.join('uploads', `manifest-${Date.now()}.json`);
-    fs.writeFileSync(tmp, json);
-    const msg = await chan.send({ content: `Manifest for ${filename}`, files: [tmp] });
-    fs.unlinkSync(tmp);
-    res.json({ ok: true, manifestMessageId: msg.id });
+    try {
+      const chan = await client.channels.fetch(channelId);
+      const json = JSON.stringify({ type: 'manifest', filename, parts, ts: Date.now() }, null, 2);
+
+      // Ensure uploads directory exists
+      fs.mkdirSync('uploads', { recursive: true });
+      const tmp = path.join('uploads', `manifest-${Date.now()}.json`);
+      fs.writeFileSync(tmp, json);
+
+      const msg = await chan.send({ content: `Manifest for ${filename}`, files: [tmp] });
+      fs.unlinkSync(tmp);
+
+      res.json({ ok: true, manifestMessageId: msg.id });
+    } catch (error) {
+      console.error('Failed to create manifest:', error);
+      res.status(500).json({ ok: false, error: 'manifest_creation_failed' });
+    }
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, error: e.message });
@@ -457,7 +491,7 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
 // Resources list route
 app.get('/api/resources/list', requireAuth, async (req, res) => {
   try {
-    const ch = client.channels.cache.get(process.env.RESOURCES_CHANNEL_ID);
+    const ch = client.channels.cache.get(RESOURCES_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
 
     const limit = Math.min(Number(req.query.limit) || 40, 80);
@@ -481,7 +515,7 @@ app.get('/api/resources/list', requireAuth, async (req, res) => {
 // Tasks add route
 app.post('/api/tasks/add', requireAuth, async (req, res) => {
   try {
-    const ch = client.channels.cache.get(process.env.TASKS_CHANNEL_ID);
+    const ch = client.channels.cache.get(TASKS_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
 
     const { title, due, note } = req.body;
