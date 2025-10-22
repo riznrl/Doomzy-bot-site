@@ -1,32 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Bigger is Better - Global Feed</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/theme.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Doomzy — Global</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .thumb { border-radius:12px; border:1px solid rgba(255,255,255,.08); }
+    .media-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:12px }
+  </style>
 </head>
 <body>
+  <script defer src="/js/nav.js"></script>
+
   <div class="container">
-    <h1>Global Feed</h1>
+    <h1 style="margin:16px 0">Global Feed</h1>
     <div class="card" style="margin-bottom:16px">
-      <form id="postForm">
+      <form id="postForm" enctype="multipart/form-data">
         <textarea id="postText" rows="3" maxlength="1900" placeholder="Say something…" style="width:100%;border-radius:12px;padding:12px;background:rgba(255,255,255,.06);color:var(--fg)"></textarea>
-        <div style="display:flex;gap:8px;margin-top:10px">
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+          <input type="file" name="file" id="postFile" />
           <button class="btn-primary" type="submit">Post</button>
+          <button class="btn-primary" type="button" id="refreshBtn">Refresh</button>
           <span class="notice" id="postNote"></span>
         </div>
       </form>
     </div>
 
     <div class="card">
-      <h3 style="margin-top:0">Latest Posts</h3>
-      <div id="feed" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Latest</h3>
+        <button class="btn-primary" id="refreshBtnTop" style="padding:.4rem .7rem;font-size:.9rem">Refresh</button>
+      </div>
+      <div id="feed" style="display:flex;flex-direction:column;gap:12px;margin-top:12px"></div>
     </div>
   </div>
 
   <script>
+    function mediaHTML(att){
+      const url = att.proxyUrl || att.url;
+      if(att.kind === 'image'){
+        return `<img class="thumb" src="${url}" alt="${att.name}" style="max-width:100%;height:auto"/>`;
+      }
+      if(att.kind === 'video'){
+        return `<video class="thumb" controls style="max-width:100%"><source src="${url}"></video>`;
+      }
+      if(att.kind === 'audio'){
+        return `<audio controls style="width:100%"><source src="${url}"></audio>`;
+      }
+      if(att.kind === 'pdf'){
+        return `<iframe class="thumb" src="${url}" style="width:100%;height:480px"></iframe>`;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener">${att.name}</a>`;
+    }
+
     async function loadFeed(){
       const r = await fetch('/api/global/feed', { credentials:'include' });
       const j = await r.json();
@@ -35,28 +62,33 @@
       if(!j.ok){ feed.innerHTML = '<p class="notice">Could not load feed.</p>'; return; }
       j.items.forEach(it=>{
         const el = document.createElement('div');
-        el.className = 'card';
-        el.style.padding='12px';
-        el.innerHTML = `<div style="opacity:.7;font-size:.9rem">${new Date(it.ts).toLocaleString()}</div>
-                        <div style="white-space:pre-wrap;margin-top:6px">${it.content}</div>`;
+        el.className = 'media-card';
+        let media = '';
+        if (it.attachments?.length){
+          media = it.attachments.map(mediaHTML).join('<div style="height:8px"></div>');
+        }
+        el.innerHTML = `
+          <div style="opacity:.8;font-size:.9rem">${it.author||'Someone'} • ${new Date(it.ts).toLocaleString()}</div>
+          ${it.content ? `<div style="white-space:pre-wrap;margin:6px 0">${it.content}</div>` : ''}
+          ${media}
+        `;
         feed.appendChild(el);
       });
     }
 
     document.getElementById('postForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const text = document.getElementById('postText').value.trim();
       const note = document.getElementById('postNote');
-      if(!text){ note.textContent = 'Type something first.'; return; }
-      const r = await fetch('/api/global/post', {
-        method:'POST', credentials:'include',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ text })
-      });
+      const fd = new FormData(e.target);
+      const r = await fetch('/api/global/post', { method:'POST', body: fd, credentials:'include' });
       const j = await r.json();
-      if(j.ok){ document.getElementById('postText').value=''; note.textContent='Posted!'; loadFeed(); }
-      else{ note.textContent = 'Failed: ' + (j.error || r.status); }
+      if(j.ok){ e.target.reset(); note.textContent='Posted!'; loadFeed(); }
+      else { note.textContent = 'Failed: ' + (j.error || r.status); }
     });
+
+    const refresh = ()=>loadFeed();
+    document.getElementById('refreshBtn').onclick = refresh;
+    document.getElementById('refreshBtnTop').onclick = refresh;
 
     loadFeed();
   </script>

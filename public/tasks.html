@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Doomzy — Tasks</title>
+<link rel="stylesheet" href="/css/theme.css">
+</head>
+<body>
+<script defer src="/js/nav.js"></script>
+
+<div class="container">
+  <h1>Tasks</h1>
+  <div class="card">
+    <form id="taskForm">
+      <input name="title" placeholder="Title" required style="width:100%;padding:10px;border-radius:12px;background:rgba(255,255,255,.06);color:var(--fg)"><br><br>
+      <input name="due" type="datetime-local" style="padding:10px;border-radius:12px;background:rgba(255,255,255,.06);color:var(--fg)">
+      <br><br>
+      <textarea name="note" rows="3" placeholder="Notes…" style="width:100%;padding:10px;border-radius:12px;background:rgba(255,255,255,.06);color:var(--fg)"></textarea>
+      <br><br>
+      <button class="btn-primary">Add Task</button>
+      <span class="notice" id="taskNote"></span>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('taskForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const note = document.getElementById('taskNote');
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const r = await fetch('/api/tasks/add', {
+    method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  const j = await r.json();
+  if(j.ok){ note.textContent='Task posted.'; e.target.reset(); }
+  else { note.textContent='Failed: '+(j.error||r.status); }
+});
+</script>
+</body>
+</html>

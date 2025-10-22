@@ -1,70 +1,82 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Bigger is Better - Resources</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/theme.css">
-<link rel="stylesheet" href="/style.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Doomzy — Resources</title>
+  <link rel="stylesheet" href="/css/theme.css">
 </head>
 <body>
-  <div class="diagnostics-bar" id="diag">
-    <span>🟣 DoomzyInkBot: <b id="botStatus">checking…</b></span>
-    <span>
-      <span id="userInfo">Loading...</span>
-      <button id="logoutBtn" style="margin-left: 1rem; padding: 0.4rem 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.8rem;">Logout</button>
-    </span>
-  </div>
+  <script defer src="/js/nav.js"></script>
 
-  <div class="resources-container">
-    <div class="resources-header">
-      <div class="resources-nav">
-        <a href="/dashboard" class="nav-link">← Back to Dashboard</a>
-        <h1 class="resources-title">Resources Gallery</h1>
-      </div>
-      <div class="resources-controls">
-        <input type="text" id="searchInput" placeholder="Search resources..." class="search-input">
-        <button id="uploadBtn" class="btn-primary">📤 Upload</button>
-      </div>
+  <div class="container">
+    <h1>Resources</h1>
+
+    <div class="card" style="margin-bottom:16px">
+      <form id="resForm" enctype="multipart/form-data">
+        <input type="file" name="file" id="resFile" required />
+        <button class="btn-primary" type="submit">Upload</button>
+        <span class="notice" id="resNote"></span>
+      </form>
     </div>
 
-    <div class="resources-content">
-      <div class="loading-state" id="loading">
-        <div class="loading-spinner"></div>
-        <p>Loading resources...</p>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Library</h3>
+        <button class="btn-primary" id="resRefresh" style="padding:.4rem .7rem;font-size:.9rem">Refresh</button>
       </div>
-
-      <div class="empty-state" id="empty" style="display: none;">
-        <div class="empty-icon">📁</div>
-        <h3>No resources found</h3>
-        <p>Upload some files to get started</p>
-      </div>
-
-      <div class="resources-grid" id="resourcesGrid">
-        <!-- Resources will be loaded here -->
-      </div>
+      <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px"></div>
     </div>
   </div>
 
-  <!-- Upload Modal -->
-  <div class="modal" id="uploadModal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Upload Resource</h2>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*,application/*,text/*">
-        <p class="upload-info">Select files to upload. They will be stored via Discord.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" id="cancelUpload">Cancel</button>
-        <button class="btn-primary" id="confirmUpload">Upload</button>
-      </div>
-    </div>
-  </div>
+  <script>
+    function cell(att, meta){
+      const url = att.proxyUrl || att.url;
+      let inner = '';
+      if(att.kind==='image'){
+        inner = `<img src="${url}" alt="${att.name}" style="width:100%;height:180px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.08)" />`;
+      } else if(att.kind==='video'){
+        inner = `<video controls style="width:100%;height:180px;border-radius:12px;border:1px solid rgba(255,255,255,.08)"><source src="${url}"></video>`;
+      } else if(att.kind==='audio'){
+        inner = `<div style="padding:8px"><strong>${att.name}</strong><audio controls style="width:100%"><source src="${url}"></audio></div>`;
+      } else if(att.kind==='pdf'){
+        inner = `<iframe src="${url}" style="width:100%;height:180px;border-radius:12px;border:1px solid rgba(255,255,255,.08)"></iframe>`;
+      } else {
+        inner = `<div class="notice" style="padding:8px"><strong>${att.name}</strong><br/><a href="${url}" target="_blank" rel="noopener">Open</a></div>`;
+      }
+      return `
+      <div class="media-card">
+        ${inner}
+        <div style="opacity:.8;font-size:.85rem;margin-top:6px">${meta.author||'Someone'} • ${new Date(meta.ts).toLocaleString()}</div>
+      </div>`;
+    }
 
-<script src="/script.js"></script>
+    async function loadRes(){
+      const r = await fetch('/api/resources/list', { credentials:'include' });
+      const j = await r.json();
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      if(!j.ok){ grid.innerHTML = '<p class="notice">Could not load resources.</p>'; return; }
+      j.items.forEach(m=>{
+        if(!m.attachments?.length) return;
+        m.attachments.forEach(att=>{
+          grid.insertAdjacentHTML('beforeend', cell(att, m));
+        });
+      });
+    }
+
+    document.getElementById('resForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const note = document.getElementById('resNote');
+      const fd = new FormData(e.target);
+      const r = await fetch('/api/resources/upload', { method:'POST', body: fd, credentials:'include' });
+      const j = await r.json();
+      if(j.ok){ note.textContent = j.chunked ? `Uploaded in ${j.total} parts.` : 'Uploaded!'; e.target.reset(); loadRes(); }
+      else { note.textContent = 'Upload failed: ' + (j.error || r.status); }
+    });
+
+    document.getElementById('resRefresh').onclick = loadRes;
+    loadRes();
+  </script>
 </body>
 </html>

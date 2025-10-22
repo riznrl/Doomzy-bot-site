@@ -234,6 +234,31 @@ async function fetchAttachmentJsonByPrefix(channelId, filenameStartsWith) {
 // Disk upload temp (site-side uploads -> bot forwards to Discord storage channel)
 const upload = multer({ dest: 'uploads/' });
 
+// Helper for detecting file types
+function detectKind(name, contentType){
+  const n = (name||'').toLowerCase();
+  if ((contentType||'').startsWith('image/')) return 'image';
+  if ((contentType||'').startsWith('video/')) return 'video';
+  if ((contentType||'').startsWith('audio/')) return 'audio';
+  if (n.endsWith('.pdf')) return 'pdf';
+  return 'file';
+}
+
+// Helper for mapping Discord attachments
+function mapAttachment(a){
+  return {
+    url: a.url,
+    proxyUrl: a.proxyURL ?? a.proxyUrl,
+    name: a.name,
+    size: a.size,
+    contentType: a.contentType,
+    kind: detectKind(a.name, a.contentType)
+  };
+}
+
+// Auth guard used elsewhere
+const requireAuth = (req,res,next)=> req.session?.user ? next() : res.status(401).json({ok:false,error:'auth_required'});
+
 // Upload -> Discord RESOURCES channel (direct upload)
 app.post('/api/resources/upload', requireAuthJson, upload.single('file'), async (req, res) => {
   try {
@@ -413,50 +438,56 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
   }
 });
 
-// ---- Global Feed API routes ----
-// Post a status to the global feed
-app.post('/api/global/post', requireAuthJson, async (req, res) => {
+// Resources list route
+app.get('/api/resources/list', requireAuth, async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ ok: false, error: 'empty' });
+    const ch = client.channels.cache.get(process.env.RESOURCES_CHANNEL_ID);
+    if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
 
-    if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
-    if (!GLOBAL_FEED_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'no_channel' });
-
-    const ch = client.channels.cache.get(GLOBAL_FEED_CHANNEL_ID);
-    if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
-
-    const author = req.user || req.session.user;
-    if (!author) return res.status(401).json({ ok: false, error: 'not_authenticated' });
-
-    const content = `**${author.username}**: ${text}`.slice(0, 1900);
-
-    const msg = await ch.send({ content });
-    res.json({ ok: true, id: msg.id, ts: msg.createdTimestamp });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false, error: 'post_fail' });
-  }
-});
-
-// Get last N items from global feed
-app.get('/api/global/feed', requireAuthJson, async (req, res) => {
-  try {
-    if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
-    if (!GLOBAL_FEED_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'no_channel' });
-
-    const ch = client.channels.cache.get(GLOBAL_FEED_CHANNEL_ID);
-    if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
-
-    const limit = Math.min(Number(req.query.limit) || 25, 50);
+    const limit = Math.min(Number(req.query.limit) || 40, 80);
     const msgs = await ch.messages.fetch({ limit });
     const items = [...msgs.values()]
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-      .map(m => ({ id: m.id, content: m.content, author: m.author?.username, ts: m.createdTimestamp }));
+      .map(m => ({
+        id: m.id,
+        ts: m.createdTimestamp,
+        author: m.author?.username,
+        text: m.content,
+        attachments: m.attachments ? [...m.attachments.values()].map(mapAttachment) : []
+      }));
     res.json({ ok: true, items });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, error: 'feed_fail' });
+    res.status(500).json({ ok: false, error: 'list_fail' });
+  }
+});
+
+// Tasks add route
+app.post('/api/tasks/add', requireAuth, async (req, res) => {
+  try {
+    const ch = client.channels.cache.get(process.env.TASKS_CHANNEL_ID);
+    if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
+
+    const { title, due, note } = req.body;
+    if (!title) return res.status(400).json({ ok: false, error: 'missing_title' });
+
+    const author = req.session.user;
+    const embed = {
+      title: `🗒️ ${title}`,
+      description: note ? String(note).slice(0, 1900) : undefined,
+      color: 0x8b5cf6,
+      fields: [
+        { name: 'By', value: author.username, inline: true },
+        ...(due ? [{ name: 'Due', value: new Date(due).toLocaleString(), inline: true }] : [])
+      ],
+      timestamp: new Date()
+    };
+
+    const msg = await ch.send({ embeds: [embed] });
+    res.json({ ok: true, id: msg.id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: 'task_fail' });
   }
 });
 
