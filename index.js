@@ -463,7 +463,7 @@ app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
 // Resources gallery
 app.get('/api/resources', requireAuthJson, async (req, res) => {
   try {
-    const chanId = process.env.RESOURCES_CHANNEL_ID;
+    const chanId = RESOURCES_CHANNEL_ID;
     if (!chanId) return res.status(500).json({ error: 'missing RESOURCES_CHANNEL_ID' });
 
     if (!client) return res.status(503).json({ error: 'bot not available' });
