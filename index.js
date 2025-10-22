@@ -10,32 +10,103 @@ import multer from 'multer';
 import fs from 'fs';
 import cors from 'cors';
 
-// Environment variable guard - helps debug missing vars
-['DISCORD_TOKEN','CLIENT_ID','CLIENT_SECRET','REDIRECT_URI','SITE_URL',
- 'GUILD_ID','RESOURCES_CHANNEL_ID','SESSION_SECRET'
-].forEach(k => { if (!process.env[k]) console.warn(`[env] ${k} is missing`); });
+// --- Minimal crash guard so Railway doesn't 502 ---
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
+
+// --- Env helpers ---
+const env = (k, d = '') => process.env[k] ?? d;
+const PORT = Number(env('PORT', 8080));
+const SESSION_SECRET = env('SESSION_SECRET', 'dev_' + Math.random().toString(36).slice(2));
+
+// Accept either comma-separated string or JSON array for IDs
+function parseIdList(v) {
+  if (!v) return [];
+  try {
+    if (v.trim().startsWith('[')) return JSON.parse(v).map(String);
+  } catch (_) {}
+  return v.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+}
+
+const ALLOWED_USER_IDS = parseIdList(env('ALLOWED_USER_IDS')); // e.g. "1417596590335725710,1234"
+
+// Optional channels (string IDs)
+const PROFILES_CHANNEL_ID  = env('PROFILES_CHANNEL_ID');
+const BADGES_CHANNEL_ID    = env('BADGES_CHANNEL_ID');
+const RESOURCES_CHANNEL_ID = env('RESOURCES_CHANNEL_ID');
+const TASKS_CHANNEL_ID     = env('TASKS_CHANNEL_ID');
+const STORAGE_CHANNEL_ID   = env('STORAGE_CHANNEL_ID');
+
+// OAuth settings
+const CLIENT_ID     = env('CLIENT_ID');
+const CLIENT_SECRET = env('CLIENT_SECRET');
+const REDIRECT_URI  = env('REDIRECT_URI', 'https://doomzyink.com/auth/callback');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
-app.use(express.json({limit: '10mb'}));
-app.use(express.urlencoded({ extended: true }));
 
-// Sessions for OAuth
+app.set('trust proxy', 1);
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'doomzyink-secret',
-  resave: false,
-  saveUninitialized: false
+  name: 'sess',
+  secret: SESSION_SECRET,
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: true
 }));
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Health for Railway
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
+
+// Minimal health endpoint for diagnostics bar
+app.get('/api/status', async (req, res) => {
+  res.json({
+    ok: true,
+    bot: client ? (client.user ? client.user.tag : 'connecting') : 'disabled',
+    uptime: process.uptime(),
+    guilds: client ? client.guilds.cache.size : 0
+  });
+});
+
+// Safe status (no secrets)
+app.get('/status', (_req, res) => {
+  res.json({
+    ok: true,
+    hasDiscordToken: Boolean(process.env.DISCORD_TOKEN),
+    allowedUsers: ALLOWED_USER_IDS.length,
+    profiles: Boolean(PROFILES_CHANNEL_ID),
+    resources: Boolean(RESOURCES_CHANNEL_ID),
+    badges: Boolean(BADGES_CHANNEL_ID),
+    tasks: Boolean(TASKS_CHANNEL_ID)
+  });
+});
+
+// ---- Auth gate you already had; just make sure it never throws ---
+function requireAuth(req, res, next) {
+  try {
+    if (!req.session?.user) return res.redirect('/auth/login');
+    if (ALLOWED_USER_IDS.length && !ALLOWED_USER_IDS.includes(String(req.session.user.id))) {
+      return res.status(403).send('Access denied');
+    }
+    return next();
+  } catch (e) {
+    console.error('requireAuth error', e);
+    return res.redirect('/auth/login');
+  }
+}
+
 // ---- Discord OAuth2 (login) ----
-if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
+// TODO: keep your existing /auth/login, /auth/callback routes (do not crash if CLIENT_ID/SECRET missing)
+if (CLIENT_ID && REDIRECT_URI) {
   passport.use(new DiscordStrategy({
-    clientID: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET || 'unused-when-using-bot-only',
-    callbackURL: process.env.REDIRECT_URI,
+    clientID: CLIENT_ID,
+    clientSecret: CLIENT_SECRET || 'unused-when-using-bot-only',
+    callbackURL: REDIRECT_URI,
     scope: ['identify']
   }, (accessToken, refreshToken, profile, done) => {
     return done(null, { id: profile.id, username: profile.username, avatar: profile.avatar });
@@ -63,35 +134,26 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
   app.get('/auth/logout', (req, res) => req.logout(() => res.redirect('/')));
 }
 
-// ---- Static site ----
-app.use(express.static(path.join(__dirname, 'public')));
-
 // ---- Auth gate middleware (add this near the top, after session setup) ----
-const requireAuth = (req, res, next) => {
-  // Accept either Passport user or your own session user
-  const user = req.user || (req.session && req.session.user);
-
-  // Not logged in → send to login
-  if (!user) return res.redirect('/auth/login');
-
-  // If you gate by allowed IDs, enforce it here
-  const allow = (process.env.ALLOWED_USER_IDS || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  if (allow.length && !allow.includes(String(user.id))) {
-    // You can render a nicer page here if you want
-    return res.status(403).send('Access denied');
+const requireAuthJson = (req, res, next) => {
+  try {
+    const user = req.user || req.session?.user;
+    if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    if (ALLOWED_USER_IDS.length && !ALLOWED_USER_IDS.includes(String(user.id))) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
+    return next();
+  } catch (e) {
+    console.error('requireAuthJson error', e);
+    return res.status(401).json({ ok: false, error: 'Authentication error' });
   }
-  return next();
 };
 
-// Authentication middleware for JSON APIs
-function requireAuthJson(req, res, next) {
-  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required' });
-  next();
-}
+// Example protected route (profile)
+app.get('/profile.html', requireAuth, async (req, res) => {
+  // render your profile HTML or send JSON; but never throw
+  res.sendFile(path.join(__dirname, 'public', 'profile.html'));
+});
 
 // Dashboard route (protected)
 app.get('/dashboard', requireAuth, (req, res) => {
@@ -103,29 +165,69 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ---- Discord bot ----
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Channel]
-});
+// ---- Discord bot (non-fatal) ----
+let client = null;
 
-client.on('ready', () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-});
+async function initBot() {
+  try {
+    const token = env('DISCORD_TOKEN');
+    if (!token) {
+      console.warn('No DISCORD_TOKEN provided, skipping bot initialization.');
+      return null;
+    }
 
-// Minimal health endpoint for diagnostics bar
-app.get('/api/status', async (req, res) => {
-  res.json({
-    ok: true,
-    bot: client.user ? client.user.tag : null,
-    uptime: process.uptime(),
-    guilds: client.guilds.cache.size
-  });
-});
+    client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+      ],
+      partials: [Partials.Channel]
+    });
+
+    client.on('ready', () => {
+      console.log(`🤖 Logged in as ${client.user.tag}`);
+    });
+
+    client.on('interactionCreate', async (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      if (interaction.commandName === 'ping') {
+        await interaction.reply('Pong from DoomzyInkBot!');
+      }
+    });
+
+    await client.login(token);
+    await registerCommands();
+    return client;
+  } catch (error) {
+    console.error('Failed to initialize bot (non-fatal):', error.message);
+    return null;
+  }
+}
+
+// Helper function for Discord channel operations
+async function fetchAttachmentJsonByPrefix(channelId, filenameStartsWith) {
+  if (!client) return null;
+  try {
+    const ch = await client.channels.fetch(channelId);
+    let before;
+    for (let i = 0; i < 10; i++) { // scan up to ~1000 messages
+      const msgs = await ch.messages.fetch({ limit: 100, before }).catch(() => null);
+      if (!msgs?.size) break;
+      for (const m of msgs.values()) {
+        const att = [...m.attachments.values()].find(a => a.name?.startsWith(filenameStartsWith));
+        if (att) {
+          const r = await fetch(att.url);
+          return await r.json();
+        }
+      }
+      before = msgs.last().id;
+    }
+  } catch (error) {
+    console.error('Error fetching attachment:', error);
+  }
+  return null;
+}
 
 // Disk upload temp (site-side uploads -> bot forwards to Discord storage channel)
 const upload = multer({ dest: 'uploads/' });
@@ -137,6 +239,8 @@ app.post('/api/upload/chunk', upload.single('chunk'), async (req, res) => {
     const filePath = req.file.path;
     const channelId = process.env.STORAGE_CHANNEL_ID;
     if (!channelId) throw new Error('Missing STORAGE_CHANNEL_ID');
+
+    if (!client) return res.status(503).json({ ok: false, error: 'bot not available' });
 
     const chan = await client.channels.fetch(channelId);
     const file = new AttachmentBuilder(filePath, { name: `${filename}.part${index}` });
@@ -155,6 +259,10 @@ app.post('/api/upload/manifest', async (req, res) => {
   try {
     const { filename, parts } = req.body; // parts: [{url, index}]
     const channelId = process.env.STORAGE_CHANNEL_ID;
+    if (!channelId) throw new Error('Missing STORAGE_CHANNEL_ID');
+
+    if (!client) return res.status(503).json({ ok: false, error: 'bot not available' });
+
     const chan = await client.channels.fetch(channelId);
     const json = JSON.stringify({ type: 'manifest', filename, parts, ts: Date.now() }, null, 2);
     fs.mkdirSync('uploads', { recursive: true });
@@ -203,39 +311,6 @@ app.get('/api/profile', requireAuthJson, async (req, res) => {
   }
 });
 
-// Profile update
-app.post('/api/profile', requireAuthJson, async (req, res) => {
-  try {
-    const { PROFILES_CHANNEL_ID } = process.env;
-    if (!PROFILES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'PROFILES_CHANNEL_ID not configured' });
-
-    const me = req.user;
-    const data = {
-      kind: 'doomzy/profile@1',
-      userId: me.id,
-      displayName: (req.body.displayName || '').slice(0, 64),
-      status: (req.body.status || '').slice(0, 280),
-      avatarMediaId: req.body.avatarMediaId || null,
-      galleryMediaIds: Array.isArray(req.body.galleryMediaIds) ? req.body.galleryMediaIds.slice(0, 20) : [],
-      badges: Array.isArray(req.body.badges) ? req.body.badges.slice(0, 12) : [],
-      updatedAt: Date.now()
-    };
-
-    fs.mkdirSync('uploads', { recursive: true });
-    const p = path.join('uploads', `profile-${me.id}.json`);
-    fs.writeFileSync(p, JSON.stringify(data, null, 2));
-
-    const ch = await client.channels.fetch(PROFILES_CHANNEL_ID);
-    await ch.send({ files: [{ attachment: p, name: `profile-${me.id}.json` }] });
-    fs.unlinkSync(p);
-
-    res.json({ ok: true, profile: data });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
 // Badges registry
 app.get('/api/badges', requireAuthJson, async (req, res) => {
   try {
@@ -255,6 +330,8 @@ app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
   try {
     const { RESOURCES_CHANNEL_ID } = process.env;
     if (!RESOURCES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'RESOURCES_CHANNEL_ID not configured' });
+
+    if (!client) return res.status(503).json({ ok: false, error: 'bot not available' });
 
     const ch = await client.channels.fetch(RESOURCES_CHANNEL_ID);
     const msg = await ch.messages.fetch(req.params.messageId).catch(() => null);
@@ -276,6 +353,8 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
   try {
     const chanId = process.env.RESOURCES_CHANNEL_ID;
     if (!chanId) return res.status(500).json({ error: 'missing RESOURCES_CHANNEL_ID' });
+
+    if (!client) return res.status(503).json({ error: 'bot not available' });
 
     const chan = await client.channels.fetch(chanId);
     if (!chan || !chan.isTextBased()) return res.status(500).json({ error: 'bad-channel' });
@@ -322,15 +401,24 @@ async function registerCommands() {
   }
 }
 
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName === 'ping') {
-    await interaction.reply('Pong from DoomzyInkBot!');
+// ---- Start HTTP server first so Railway sees a listener ---
+const server = app.listen(PORT, '0.0.0.0', () =>
+  console.log(`🌐 Web server listening on :${PORT}`)
+);
+
+// ---- Log in the Discord bot, but do NOT crash the HTTP server if login fails ---
+(async () => {
+  try {
+    const token = env('DISCORD_TOKEN');
+    if (!token) {
+      console.warn('No DISCORD_TOKEN provided, skipping bot login.');
+      return;
+    }
+    const bot = await initBot();
+    if (bot) {
+      console.log(`🤖 Bot ready as ${bot?.user?.tag ?? 'unknown'}`);
+    }
+  } catch (err) {
+    console.error('Failed to login bot (non-fatal):', err?.message || err);
   }
-});
-
-client.login(process.env.DISCORD_TOKEN).catch(err => {
-  console.error('Failed to login bot:', err.message);
-});
-
-registerCommands();
+})();
