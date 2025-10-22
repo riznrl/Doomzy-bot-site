@@ -489,7 +489,7 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
 });
 
 // Resources list route
-app.get('/api/resources/list', requireAuth, async (req, res) => {
+app.get('/api/resources/list', requireAuthJson, async (req, res) => {
   try {
     const ch = client.channels.cache.get(RESOURCES_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
@@ -513,7 +513,7 @@ app.get('/api/resources/list', requireAuth, async (req, res) => {
 });
 
 // Tasks add route
-app.post('/api/tasks/add', requireAuth, async (req, res) => {
+app.post('/api/tasks/add', requireAuthJson, async (req, res) => {
   try {
     const ch = client.channels.cache.get(TASKS_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
