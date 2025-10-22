@@ -6,9 +6,10 @@ A modern productivity dashboard with Discord integration. Features task manageme
 
 - 🎨 **Modern Landing Page**: "Bigger is Better" branded landing page with Discord login
 - 🔐 **Discord Authentication**: Secure OAuth login system
+- 👤 **User Profiles**: Complete profile system with bio, badges, and avatar management
+- 📁 **Resources Gallery**: Beautiful grid gallery for browsing and uploading files
 - 📅 **Task Management**: Create and manage tasks with priorities and due dates
 - 🤖 **Discord Bot Integration**: Bot handles task storage and file uploads
-- 📁 **File Upload System**: Upload files through the dashboard
 - 📱 **Responsive Design**: Works on all devices
 - 🌈 **Beautiful UI**: Glassmorphism design with purple gradients
 
@@ -29,10 +30,38 @@ CLIENT_ID=your_client_id_here
 CLIENT_SECRET=your_client_secret_here
 REDIRECT_URI=http://localhost:8080/auth/callback
 PORT=8080
-STORAGE_CHANNEL_ID=your_discord_channel_id_for_file_storage
-TASKS_CHANNEL_ID=your_discord_channel_id_for_tasks
+STORAGE_CHANNEL_ID=your_storage_channel_id
+TASKS_CHANNEL_ID=your_tasks_channel_id
+PROFILES_CHANNEL_ID=your_profiles_channel_id
+BADGES_CHANNEL_ID=your_badges_channel_id
+RESOURCES_CHANNEL_ID=your_resources_channel_id
 SESSION_SECRET=your_random_secret_string
 ```
+
+### Discord Channel Setup
+1. Create these channels in your Discord server:
+   - `#profiles` - For storing user profile data (JSON files)
+   - `#badges` - For storing the badges registry
+   - `#resources` - For storing avatar images and other media files
+   - `#tasks` - For storing task data
+   - `#storage` - For file uploads and attachments
+
+2. Copy each channel ID and add them to your `.env` file
+
+### Badge System Setup
+1. Upload your badge icons (PNG files) to the `#resources` channel
+2. Note the message IDs of each badge icon
+3. Create a `badges.json` file with your badge definitions:
+```json
+{
+  "kind": "doomzy/badges@1",
+  "badges": [
+    { "id": "vip", "label": "VIP", "mediaId": "your_message_id_here" },
+    { "id": "editor", "label": "Editor", "mediaId": "your_message_id_here" }
+  ]
+}
+```
+4. Upload this file to your `#badges` channel via the Discord web interface
 
 ### Running Locally
 ```bash
@@ -61,7 +90,14 @@ Your bot needs these permissions in the channels where it will operate:
 
 - `GET /` - Landing page with Discord login
 - `GET /dashboard` - Protected dashboard (requires authentication)
+- `GET /profile.html` - User profile management page
+- `GET /resources.html` - Resources gallery page
 - `GET /api/status` - Bot status and health check
+- `GET /api/profile/:userId` - Get user profile data
+- `POST /api/profile` - Update user profile (bio, badges, avatar)
+- `GET /api/badges` - Get available badges registry
+- `GET /api/resources/latest` - Get latest resources for gallery
+- `GET /api/media/:messageId` - Media proxy for avatars and badges
 - `POST /api/tasks` - Create tasks (Discord bot integration)
 - `POST /api/upload/chunk` - Upload file chunks
 - `POST /api/upload/manifest` - Complete file upload
