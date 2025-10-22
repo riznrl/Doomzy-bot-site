@@ -41,6 +41,14 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
   app.use(passport.session());
   app.get('/auth/login', passport.authenticate('discord'));
   app.get('/auth/callback', passport.authenticate('discord', { failureRedirect: '/?login=failed' }), (req, res) => {
+    // Store user in session as backup (Passport should already store in req.user)
+    if (req.user) {
+      req.session.user = {
+        id: req.user.id,
+        username: req.user.username,
+        avatar: req.user.avatar
+      };
+    }
     res.redirect('/dashboard?login=success');
   });
   app.get('/auth/me', (req, res) => {
@@ -52,6 +60,27 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
 
 // ---- Static site ----
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---- Auth gate middleware (add this near the top, after session setup) ----
+const requireAuth = (req, res, next) => {
+  // Accept either Passport user or your own session user
+  const user = req.user || (req.session && req.session.user);
+
+  // Not logged in → send to login
+  if (!user) return res.redirect('/auth/login');
+
+  // If you gate by allowed IDs, enforce it here
+  const allow = (process.env.ALLOWED_USER_IDS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (allow.length && !allow.includes(String(user.id))) {
+    // You can render a nicer page here if you want
+    return res.status(403).send('Access denied');
+  }
+  return next();
+};
 
 // Authentication middleware for JSON APIs
 function requireAuthJson(req, res, next) {
