@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bigger is Better - Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="diagnostics-bar" id="diag">
+    <span>🟣 DoomzyInkBot: <b id="botStatus">checking…</b></span>
+    <span>
+      <span id="userInfo">Loading...</span>
+      <button id="logoutBtn" style="margin-left: 1rem; padding: 0.4rem 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.8rem;">Logout</button>
+    </span>
+  </div>
+
+  <div class="profile-container">
+    <div class="profile-header">
+      <div class="profile-nav">
+        <a href="/dashboard" class="nav-link">← Back to Dashboard</a>
+        <h1 class="profile-title">Your Profile</h1>
+      </div>
+    </div>
+
+    <div class="profile-content">
+      <div class="profile-card">
+        <div class="profile-row">
+          <div class="avatar-section">
+            <div class="avatar" id="avatar">
+              <span>🖼️</span>
+            </div>
+            <button class="btn-secondary" id="chooseAvatar">Set Avatar</button>
+          </div>
+
+          <div class="profile-fields">
+            <div class="field-group">
+              <label for="displayName">Display Name</label>
+              <input type="text" id="displayName" maxlength="64" placeholder="Your display name">
+            </div>
+
+            <div class="field-group">
+              <label for="status">Status</label>
+              <input type="text" id="status" maxlength="120" placeholder="Your status message">
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="bio">Bio</label>
+          <textarea id="bio" placeholder="Tell us about yourself..." rows="4"></textarea>
+        </div>
+
+        <div class="field-group">
+          <label>Badges</label>
+          <div id="badges" class="badges-container"></div>
+        </div>
+
+        <div class="field-group">
+          <label>Gallery</label>
+          <div id="gallery" class="gallery-grid"></div>
+        </div>
+
+        <div class="profile-actions">
+          <button class="btn-primary" id="saveBtn">Save Profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="/script.js"></script>
+</body>
+</html>

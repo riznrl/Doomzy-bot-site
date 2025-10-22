@@ -9,14 +9,23 @@ refreshStatus(); setInterval(refreshStatus, 5000);
 
 function uid(){ return '#'+Math.random().toString(36).substring(2,6).toUpperCase(); }
 
-// Check if we're on the dashboard page
-const isDashboard = window.location.pathname === '/dashboard';
+// Check which page we're on
+const currentPath = window.location.pathname;
+const isDashboard = currentPath === '/dashboard';
+const isProfile = currentPath === '/profile.html';
+const isResources = currentPath === '/resources.html';
 
 if (isDashboard) {
   // Dashboard-specific functionality
   loadUserInfo();
   loadTasks();
   setupDashboardEventListeners();
+} else if (isProfile) {
+  // Profile page functionality
+  setupProfilePage();
+} else if (isResources) {
+  // Resources page functionality
+  setupResourcesPage();
 } else {
   // Landing page functionality
   setupLandingPageEventListeners();
@@ -118,10 +127,155 @@ async function loadUserInfo() {
   }
 }
 
-async function loadTasks() {
-  // For now, tasks are loaded via the Discord bot
-  // This would typically fetch from a database or API
-  // The current implementation creates tasks via Discord messages
+// Profile page functionality
+function setupProfilePage() {
+  loadUserInfo();
+
+  // Logout functionality
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    window.location.href = '/auth/logout';
+  });
+
+  // Load profile data
+  loadProfileData();
+}
+
+async function loadProfileData() {
+  try {
+    const me = await (await fetch('/auth/me')).json();
+    if (!me?.user) {
+      window.location.href = '/';
+      return;
+    }
+
+    const uid = me.user.id;
+
+    // Load profile
+    const profRes = await fetch(`/api/profile/${uid}`);
+    const prof = (await profRes.json()).profile;
+
+    // Load badges
+    const badgesRes = await fetch('/api/badges');
+    const badgeList = (await badgesRes.json()).badges || [];
+
+    // Populate form fields
+    const displayName = document.getElementById('displayName');
+    const status = document.getElementById('status');
+    const bio = document.getElementById('bio');
+    const avatar = document.getElementById('avatar');
+    const badges = document.getElementById('badges');
+    const gallery = document.getElementById('gallery');
+
+    if (displayName) displayName.value = prof.displayName || '';
+    if (status) status.value = prof.status || '';
+    if (bio) bio.value = prof.bio || '';
+
+    // Set avatar
+    if (prof.avatarMediaId && avatar) {
+      const img = new Image();
+      img.onload = () => {
+        avatar.innerHTML = '';
+        avatar.appendChild(img);
+      };
+      img.src = `/api/media/${prof.avatarMediaId}`;
+    }
+
+    // Set badges
+    if (badges) {
+      const selected = new Set(prof.badges || []);
+      badgeList.forEach(badge => {
+        const el = document.createElement('button');
+        el.className = `badge ${selected.has(badge.id) ? 'selected' : ''}`;
+        el.type = 'button';
+        el.dataset.id = badge.id;
+
+        if (badge.mediaId) {
+          const img = new Image();
+          img.src = `/api/media/${badge.mediaId}`;
+          img.alt = badge.label;
+          el.appendChild(img);
+        }
+        el.append(document.createTextNode(badge.label));
+
+        el.onclick = () => {
+          if (selected.has(badge.id)) {
+            selected.delete(badge.id);
+            el.classList.remove('selected');
+          } else {
+            selected.add(badge.id);
+            el.classList.add('selected');
+          }
+        };
+        badges.appendChild(el);
+      });
+    }
+
+    // Set gallery
+    if (gallery && prof.galleryMediaIds) {
+      prof.galleryMediaIds.forEach(id => {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        const img = new Image();
+        img.onload = () => {
+          item.innerHTML = '';
+          item.appendChild(img);
+        };
+        img.src = `/api/media/${id}`;
+        gallery.appendChild(item);
+      });
+    }
+
+    // Avatar chooser
+    const chooseAvatar = document.getElementById('chooseAvatar');
+    if (chooseAvatar) {
+      chooseAvatar.onclick = async () => {
+        const id = prompt('Paste a resource messageId for your avatar:');
+        if (id) {
+          const img = new Image();
+          img.onload = () => {
+            avatar.innerHTML = '';
+            avatar.appendChild(img);
+            prof.avatarMediaId = id;
+          };
+          img.src = `/api/media/${id}`;
+        }
+      };
+    }
+
+    // Save profile
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) {
+      saveBtn.onclick = async () => {
+        const body = {
+          displayName: displayName?.value.trim() || '',
+          status: status?.value.trim() || '',
+          bio: bio?.value.trim() || '',
+          avatarMediaId: prof.avatarMediaId || null,
+          galleryMediaIds: prof.galleryMediaIds || [],
+          badges: Array.from(selected)
+        };
+
+        try {
+          const res = await fetch('/api/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          if ((await res.json()).ok) {
+            showNotification('Profile saved successfully!', 'success');
+          } else {
+            showNotification('Failed to save profile', 'error');
+          }
+        } catch (error) {
+          showNotification('Error saving profile', 'error');
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Error loading profile:', error);
+    showNotification('Error loading profile', 'error');
+  }
 }
 
 async function uploadFile(file) {
@@ -231,4 +385,170 @@ function showNotification(message, type = 'info') {
       setTimeout(() => notification.remove(), 300);
     }
   }, 5000);
+}
+function setupResourcesPage() {
+  loadUserInfo();
+
+  // Logout functionality
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    window.location.href = '/auth/logout';
+  });
+
+  // Load resources
+  loadResources();
+}
+
+async function loadResources() {
+  try {
+    const loading = document.getElementById('loading');
+    const empty = document.getElementById('empty');
+    const grid = document.getElementById('resourcesGrid');
+
+    if (loading) loading.style.display = 'flex';
+    if (empty) empty.style.display = 'none';
+    if (grid) grid.innerHTML = '';
+
+    const res = await fetch('/api/resources/latest');
+    const data = await res.json();
+
+    if (loading) loading.style.display = 'none';
+
+    if (!data.ok || !data.items || data.items.length === 0) {
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+
+    // Populate grid
+    data.items.forEach(item => {
+      const resourceItem = document.createElement('div');
+      resourceItem.className = 'resource-item';
+      resourceItem.onclick = () => {
+        // For now, just copy the media URL to clipboard
+        navigator.clipboard.writeText(`/api/media/${item.messageId}`);
+        showNotification(`Media URL copied: /api/media/${item.messageId}`, 'info');
+      };
+
+      const preview = document.createElement('div');
+      preview.className = 'resource-preview';
+
+      // Determine file type and set appropriate preview
+      if (item.contentType && item.contentType.startsWith('image/')) {
+        const img = new Image();
+        img.onload = () => {
+          preview.innerHTML = '';
+          preview.appendChild(img);
+        };
+        img.onerror = () => {
+          preview.innerHTML = '🖼️';
+        };
+        img.src = `/api/media/${item.messageId}`;
+      } else if (item.contentType && item.contentType.startsWith('video/')) {
+        preview.innerHTML = '🎥';
+      } else if (item.contentType && item.contentType.startsWith('audio/')) {
+        preview.innerHTML = '🎵';
+      } else {
+        preview.innerHTML = '📄';
+      }
+
+      const info = document.createElement('div');
+      info.className = 'resource-info';
+
+      const name = document.createElement('div');
+      name.className = 'resource-name';
+      name.textContent = item.fileName || item.messageId;
+
+      const details = document.createElement('div');
+      details.className = 'resource-details';
+      details.textContent = item.size ? `${(item.size / 1024 / 1024).toFixed(1)}MB` : '';
+
+      const type = document.createElement('div');
+      type.className = 'resource-type';
+      type.textContent = item.contentType ? item.contentType.split('/')[0] : 'file';
+
+      info.append(name, details, type);
+      resourceItem.append(preview, info);
+      grid.appendChild(resourceItem);
+    });
+
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const items = grid.querySelectorAll('.resource-item');
+
+        items.forEach(item => {
+          const name = item.querySelector('.resource-name').textContent.toLowerCase();
+          const isVisible = name.includes(searchTerm);
+          item.style.display = isVisible ? 'block' : 'none';
+        });
+      });
+    }
+
+    // Upload modal functionality
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadModal = document.getElementById('uploadModal');
+    const cancelUpload = document.getElementById('cancelUpload');
+    const confirmUpload = document.getElementById('confirmUpload');
+    const fileInput = document.getElementById('fileInput');
+    const modalClose = uploadModal?.querySelector('.modal-close');
+
+    if (uploadBtn) {
+      uploadBtn.onclick = () => {
+        if (uploadModal) uploadModal.style.display = 'flex';
+      };
+    }
+
+    if (modalClose) {
+      modalClose.onclick = () => {
+        if (uploadModal) uploadModal.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+      };
+    }
+
+    if (cancelUpload) {
+      cancelUpload.onclick = () => {
+        if (uploadModal) uploadModal.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+      };
+    }
+
+    if (confirmUpload) {
+      confirmUpload.onclick = async () => {
+        if (!fileInput?.files.length) {
+          showNotification('Please select a file to upload', 'error');
+          return;
+        }
+
+        try {
+          for (let file of fileInput.files) {
+            await uploadFile(file);
+          }
+
+          if (uploadModal) uploadModal.style.display = 'none';
+          if (fileInput) fileInput.value = '';
+
+          // Refresh the resources list
+          setTimeout(() => loadResources(), 1000);
+        } catch (error) {
+          showNotification('Upload failed', 'error');
+        }
+      };
+    }
+
+    // Close modal on outside click
+    if (uploadModal) {
+      uploadModal.onclick = (e) => {
+        if (e.target === uploadModal) {
+          uploadModal.style.display = 'none';
+          if (fileInput) fileInput.value = '';
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Error loading resources:', error);
+    if (loading) loading.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    showNotification('Error loading resources', 'error');
+  }
 }

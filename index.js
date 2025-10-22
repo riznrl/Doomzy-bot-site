@@ -53,12 +53,10 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
 // ---- Static site ----
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Authentication middleware
-function requireAuth(req, res, next) {
-  if (req.user) {
-    return next();
-  }
-  res.redirect('/?login=required');
+// Authentication middleware for JSON APIs
+function requireAuthJson(req, res, next) {
+  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+  next();
 }
 
 // Dashboard route (protected)
@@ -137,14 +135,125 @@ app.post('/api/upload/manifest', async (req, res) => {
   }
 });
 
-// Tasks create (site -> bot tasks channel)
-app.post('/api/tasks', async (req, res) => {
+// ---- Profile & Badges API (Discord as storage) ----
+
+// Profile read
+app.get('/api/profile/:userId', requireAuthJson, async (req, res) => {
   try {
-    const { title, due, priority, id } = req.body;
-    const channelId = process.env.TASKS_CHANNEL_ID;
-    const chan = await client.channels.fetch(channelId);
-    const msg = await chan.send(`📝 **${title}**\nDue: ${due}\nPriority: ${priority}\nID: ${id}`);
-    res.json({ ok: true, id: msg.id });
+    const { PROFILES_CHANNEL_ID } = process.env;
+    if (!PROFILES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'PROFILES_CHANNEL_ID not configured' });
+
+    const userId = req.params.userId;
+    const found = await fetchAttachmentJsonByPrefix(PROFILES_CHANNEL_ID, `profile-${userId}.json`);
+    res.json({
+      ok: true,
+      profile: found || {
+        kind: 'doomzy/profile@1',
+        userId,
+        displayName: req.user?.global_name || req.user?.username || 'User',
+        status: '',
+        avatarMediaId: null,
+        galleryMediaIds: [],
+        badges: [],
+        updatedAt: Date.now()
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Profile update
+app.post('/api/profile', requireAuthJson, async (req, res) => {
+  try {
+    const { PROFILES_CHANNEL_ID } = process.env;
+    if (!PROFILES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'PROFILES_CHANNEL_ID not configured' });
+
+    const me = req.user;
+    const data = {
+      kind: 'doomzy/profile@1',
+      userId: me.id,
+      displayName: (req.body.displayName || '').slice(0, 64),
+      status: (req.body.status || '').slice(0, 280),
+      avatarMediaId: req.body.avatarMediaId || null,
+      galleryMediaIds: Array.isArray(req.body.galleryMediaIds) ? req.body.galleryMediaIds.slice(0, 20) : [],
+      badges: Array.isArray(req.body.badges) ? req.body.badges.slice(0, 12) : [],
+      updatedAt: Date.now()
+    };
+
+    fs.mkdirSync('uploads', { recursive: true });
+    const p = path.join('uploads', `profile-${me.id}.json`);
+    fs.writeFileSync(p, JSON.stringify(data, null, 2));
+
+    const ch = await client.channels.fetch(PROFILES_CHANNEL_ID);
+    await ch.send({ files: [{ attachment: p, name: `profile-${me.id}.json` }] });
+    fs.unlinkSync(p);
+
+    res.json({ ok: true, profile: data });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Badges registry
+app.get('/api/badges', requireAuthJson, async (req, res) => {
+  try {
+    const { BADGES_CHANNEL_ID } = process.env;
+    if (!BADGES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'BADGES_CHANNEL_ID not configured' });
+
+    const mf = await fetchAttachmentJsonByPrefix(BADGES_CHANNEL_ID, 'badges');
+    res.json({ ok: true, badges: mf?.badges || [] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Media proxy (for avatar/badges)
+app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
+  try {
+    const { RESOURCES_CHANNEL_ID } = process.env;
+    if (!RESOURCES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'RESOURCES_CHANNEL_ID not configured' });
+
+    const ch = await client.channels.fetch(RESOURCES_CHANNEL_ID);
+    const msg = await ch.messages.fetch(req.params.messageId).catch(() => null);
+    const att = msg?.attachments?.first();
+    if (!att) return res.status(404).end();
+
+    const r = await fetch(att.url);
+    res.setHeader('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    r.body.pipe(res);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Resources gallery
+app.get('/api/resources/latest', requireAuthJson, async (req, res) => {
+  try {
+    const { RESOURCES_CHANNEL_ID } = process.env;
+    if (!RESOURCES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'RESOURCES_CHANNEL_ID not configured' });
+
+    const ch = await client.channels.fetch(RESOURCES_CHANNEL_ID);
+    const coll = await ch.messages.fetch({ limit: 50 }).catch(() => null);
+    if (!coll) return res.json({ ok: true, items: [] });
+
+    const items = [];
+    for (const m of coll.values()) {
+      const att = m.attachments?.first();
+      if (!att) continue;
+      items.push({
+        messageId: m.id,
+        fileName: att.name,
+        contentType: att.contentType || null,
+        size: att.size || null
+      });
+    }
+    res.json({ ok: true, items });
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, error: e.message });

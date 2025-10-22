@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bigger is Better - Resources</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="diagnostics-bar" id="diag">
+    <span>🟣 DoomzyInkBot: <b id="botStatus">checking…</b></span>
+    <span>
+      <span id="userInfo">Loading...</span>
+      <button id="logoutBtn" style="margin-left: 1rem; padding: 0.4rem 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.8rem;">Logout</button>
+    </span>
+  </div>
+
+  <div class="resources-container">
+    <div class="resources-header">
+      <div class="resources-nav">
+        <a href="/dashboard" class="nav-link">← Back to Dashboard</a>
+        <h1 class="resources-title">Resources Gallery</h1>
+      </div>
+      <div class="resources-controls">
+        <input type="text" id="searchInput" placeholder="Search resources..." class="search-input">
+        <button id="uploadBtn" class="btn-primary">📤 Upload</button>
+      </div>
+    </div>
+
+    <div class="resources-content">
+      <div class="loading-state" id="loading">
+        <div class="loading-spinner"></div>
+        <p>Loading resources...</p>
+      </div>
+
+      <div class="empty-state" id="empty" style="display: none;">
+        <div class="empty-icon">📁</div>
+        <h3>No resources found</h3>
+        <p>Upload some files to get started</p>
+      </div>
+
+      <div class="resources-grid" id="resourcesGrid">
+        <!-- Resources will be loaded here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal" id="uploadModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Upload Resource</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*,application/*,text/*">
+        <p class="upload-info">Select files to upload. They will be stored via Discord.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelUpload">Cancel</button>
+        <button class="btn-primary" id="confirmUpload">Upload</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/script.js"></script>
+</body>
+</html>
