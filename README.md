@@ -36,7 +36,10 @@ PROFILES_CHANNEL_ID=your_profiles_channel_id
 BADGES_CHANNEL_ID=your_badges_channel_id
 RESOURCES_CHANNEL_ID=your_resources_channel_id
 SESSION_SECRET=your_random_secret_string
+ALLOWED_USER_IDS=your_discord_user_id_here
 ```
+
+**Note**: Set `ALLOWED_USER_IDS` to your Discord user ID (or comma-separated list of allowed IDs) to restrict access. Leave empty to allow all authenticated users.
 
 ### Discord Channel Setup
 1. Create these channels in your Discord server:
