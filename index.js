@@ -9,6 +9,8 @@ import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, Attachmen
 import multer from 'multer';
 import fs from 'fs';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 // --- Minimal crash guard so Railway doesn't 502 ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
@@ -37,6 +39,7 @@ const RESOURCES_CHANNEL_ID = env('RESOURCES_CHANNEL_ID');
 const TASKS_CHANNEL_ID     = env('TASKS_CHANNEL_ID');
 const STORAGE_CHANNEL_ID   = env('STORAGE_CHANNEL_ID');
 const GLOBAL_FEED_CHANNEL_ID = env('GLOBAL_FEED_CHANNEL_ID');
+const SITE_ANNOUNCEMENTS_ID = env('SITE_ANNOUNCEMENTS_ID');
 
 // OAuth settings
 const CLIENT_ID     = env('CLIENT_ID');
@@ -46,7 +49,14 @@ const REDIRECT_URI  = env('REDIRECT_URI', 'https://doomzyink.com/auth/callback')
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+// Create HTTP server and Socket.IO
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // In production, specify your domain
+    methods: ["GET", "POST"]
+  }
+});
 
 app.set('trust proxy', 1);
 app.use(session({
@@ -84,7 +94,8 @@ app.get('/status', (_req, res) => {
     resources: Boolean(RESOURCES_CHANNEL_ID),
     badges: Boolean(BADGES_CHANNEL_ID),
     tasks: Boolean(TASKS_CHANNEL_ID),
-    globalFeed: Boolean(GLOBAL_FEED_CHANNEL_ID)
+    globalFeed: Boolean(GLOBAL_FEED_CHANNEL_ID),
+    siteAnnouncements: Boolean(SITE_ANNOUNCEMENTS_ID)
   });
 });
 
@@ -155,6 +166,11 @@ const requireAuthJson = (req, res, next) => {
 app.get('/profile.html', requireAuth, async (req, res) => {
   // render your profile HTML or send JSON; but never throw
   res.sendFile(path.join(__dirname, 'public', 'profile.html'));
+});
+
+// Serve Socket.IO client
+app.get('/socket.io/socket.io.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'node_modules', 'socket.io-client', 'dist', 'socket.io.js'));
 });
 
 // Dashboard route (protected)
@@ -517,9 +533,33 @@ async function registerCommands() {
 }
 
 // ---- Start HTTP server first so Railway sees a listener ---
-const server = app.listen(PORT, '0.0.0.0', () =>
+server.listen(PORT, '0.0.0.0', () =>
   console.log(`🌐 Web server listening on :${PORT}`)
 );
+
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log('🔌 User connected:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('🔌 User disconnected:', socket.id);
+  });
+});
+
+// ---- Discord message listener for site announcements ---
+function setupDiscordListeners(bot) {
+  bot.on('messageCreate', (msg) => {
+    if (
+      SITE_ANNOUNCEMENTS_ID &&
+      msg.channelId === SITE_ANNOUNCEMENTS_ID &&
+      !msg.author.bot
+    ) {
+      io.emit('trigger-announcement-notification', {
+        message: msg.content.slice(0, 150),
+        url: `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.id}`
+      });
+    }
+  });
+}
 
 // ---- Log in the Discord bot, but do NOT crash the HTTP server if login fails ---
 (async () => {
@@ -532,6 +572,7 @@ const server = app.listen(PORT, '0.0.0.0', () =>
     const bot = await initBot();
     if (bot) {
       console.log(`🤖 Bot ready as ${bot?.user?.tag ?? 'unknown'}`);
+      setupDiscordListeners(bot);
     }
   } catch (err) {
     console.error('Failed to login bot (non-fatal):', err?.message || err);

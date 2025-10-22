@@ -39,6 +39,7 @@ GUILD_ID=your_guild_id_here
 SITE_URL=http://localhost:8080
 SESSION_SECRET=your_random_secret_string
 GLOBAL_FEED_CHANNEL_ID=your_global_feed_channel_id
+SITE_ANNOUNCEMENTS_ID=your_site_announcements_channel_id
 ```
 
 **Note**: Set `ALLOWED_USER_IDS` to your Discord user ID (or comma-separated list of allowed IDs) to restrict access. Leave empty to allow all authenticated users.
@@ -50,6 +51,7 @@ GLOBAL_FEED_CHANNEL_ID=your_global_feed_channel_id
    - `#resources` - For storing avatar images and other media files
    - `#tasks` - For storing task data
    - `#global-feed` - For storing global feed posts (one message = one post)
+   - `#site-announcements` - For broadcasting site-wide announcements (triggers notifications)
    - `#storage` - For file uploads and attachments
 
 2. Copy each channel ID and add them to your `.env` file
@@ -97,8 +99,10 @@ Your bot needs these permissions in the channels where it will operate:
 - `GET /` - Landing page with Discord login
 - `GET /dashboard` - Protected dashboard (requires authentication)
 - `GET /profile.html` - User profile management page
-- `GET /resources.html` - Resources gallery page
-- `GET /healthz` - Railway health check
+- `GET /tasks.html` - Task creation page
+- `POST /api/tasks/add` - Create tasks with Discord embeds
+- `GET /socket.io/socket.io.js` - Socket.IO client library
+- Real-time notifications via WebSocket for site announcements
 - `GET /status` - Service status and configuration info
 - `GET /api/profile` - Get current user profile data
 - `POST /api/profile` - Update user profile (bio, badges, avatar)
@@ -108,6 +112,33 @@ Your bot needs these permissions in the channels where it will operate:
 - `GET /api/global/feed` - Get global feed posts
 - `POST /api/global/post` - Post to global feed
 - Discord OAuth endpoints: `/auth/login`, `/auth/callback`, `/auth/logout`
+
+## Site Announcements & Real-time Notifications
+
+The site includes a real-time announcement system that broadcasts messages from Discord to all connected web clients.
+
+### How It Works
+1. **Discord Integration**: When a user posts in the `#site-announcements` Discord channel, the bot detects it
+2. **WebSocket Broadcast**: The bot broadcasts the message via WebSocket to all connected clients
+3. **Visual Notification**: Users see a shake animation and sliding banner notification
+4. **Clickable Links**: Users can click the banner to open the Discord message
+
+### Setup
+1. Create a `#site-announcements` channel in your Discord server
+2. Set `SITE_ANNOUNCEMENTS_ID` in your Railway variables to the channel ID
+3. The system automatically activates when users visit any page
+
+### Features
+- ✅ **Real-time notifications** across all pages
+- ✅ **Shake animation** and visual feedback
+- ✅ **Auto-dismiss** after 5 seconds
+- ✅ **Clickable banners** that open Discord links
+- ✅ **Global availability** - works on every page
+
+### Testing
+1. Visit any page on your site
+2. Post a message in your `#site-announcements` Discord channel
+3. Watch for the notification banner to appear with shake animation
 
 ## Railway Deployment
 
