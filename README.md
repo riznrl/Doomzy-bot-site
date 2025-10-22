@@ -35,6 +35,8 @@ TASKS_CHANNEL_ID=your_tasks_channel_id
 PROFILES_CHANNEL_ID=your_profiles_channel_id
 BADGES_CHANNEL_ID=your_badges_channel_id
 RESOURCES_CHANNEL_ID=your_resources_channel_id
+GUILD_ID=your_guild_id_here
+SITE_URL=http://localhost:8080
 SESSION_SECRET=your_random_secret_string
 ALLOWED_USER_IDS=your_discord_user_id_here
 ```

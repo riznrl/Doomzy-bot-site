@@ -151,8 +151,9 @@ async function loadProfileData() {
     const uid = me.user.id;
 
     // Load profile
-    const profRes = await fetch(`/api/profile/${uid}`);
-    const prof = (await profRes.json()).profile;
+    const profRes = await fetch('/api/profile', { credentials: 'include' });
+    if (!profRes.ok) throw new Error('profile-load');
+    const prof = await profRes.json();
 
     // Load badges
     const badgesRes = await fetch('/api/badges');
@@ -166,18 +167,17 @@ async function loadProfileData() {
     const badges = document.getElementById('badges');
     const gallery = document.getElementById('gallery');
 
-    if (displayName) displayName.value = prof.displayName || '';
+    if (displayName) displayName.value = prof.displayName || prof.username || '';
     if (status) status.value = prof.status || '';
-    if (bio) bio.value = prof.bio || '';
 
     // Set avatar
-    if (prof.avatarMediaId && avatar) {
+    if (prof.avatar && avatar) {
       const img = new Image();
       img.onload = () => {
         avatar.innerHTML = '';
         avatar.appendChild(img);
       };
-      img.src = `/api/media/${prof.avatarMediaId}`;
+      img.src = `https://cdn.discordapp.com/avatars/${prof.id}/${prof.avatar}.png?size=128`;
     }
 
     // Set badges
@@ -408,24 +408,25 @@ async function loadResources() {
     if (empty) empty.style.display = 'none';
     if (grid) grid.innerHTML = '';
 
-    const res = await fetch('/api/resources/latest');
-    const data = await res.json();
+    const res = await fetch('/api/resources', { credentials: 'include' });
+    if (!res.ok) throw new Error('not ok');
+    const { items } = await res.json();
 
     if (loading) loading.style.display = 'none';
 
-    if (!data.ok || !data.items || data.items.length === 0) {
+    if (!items?.length) {
       if (empty) empty.style.display = 'block';
       return;
     }
 
     // Populate grid
-    data.items.forEach(item => {
+    items.forEach(item => {
       const resourceItem = document.createElement('div');
       resourceItem.className = 'resource-item';
       resourceItem.onclick = () => {
         // For now, just copy the media URL to clipboard
-        navigator.clipboard.writeText(`/api/media/${item.messageId}`);
-        showNotification(`Media URL copied: /api/media/${item.messageId}`, 'info');
+        navigator.clipboard.writeText(item.url);
+        showNotification(`Media URL copied: ${item.url}`, 'info');
       };
 
       const preview = document.createElement('div');
@@ -441,7 +442,7 @@ async function loadResources() {
         img.onerror = () => {
           preview.innerHTML = '🖼️';
         };
-        img.src = `/api/media/${item.messageId}`;
+        img.src = item.url;
       } else if (item.contentType && item.contentType.startsWith('video/')) {
         preview.innerHTML = '🎥';
       } else if (item.contentType && item.contentType.startsWith('audio/')) {
@@ -455,7 +456,7 @@ async function loadResources() {
 
       const name = document.createElement('div');
       name.className = 'resource-name';
-      name.textContent = item.fileName || item.messageId;
+      name.textContent = item.name || item.id;
 
       const details = document.createElement('div');
       details.className = 'resource-details';

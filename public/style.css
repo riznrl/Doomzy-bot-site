@@ -1,7 +1,8 @@
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto;color:#fff;
-background:radial-gradient(1200px 600px at 20% -10%, rgba(180,80,255,.25), transparent),
-radial-gradient(1000px 500px at 100% 0%, rgba(110,50,255,.18), transparent),
-linear-gradient(145deg,#1a0d2b,#0d0615);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+html, body {
+  height: 100%;
+  overflow: auto;                 /* was: hidden */
+  -webkit-overflow-scrolling: touch;
+}
 .diagnostics-bar{padding:.8rem 1.5rem;background:rgba(180,80,255,.08);border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem;display:flex;gap:1rem;justify-content:space-between;align-items:center;color:#d9bfff}
 .calendar-section{flex:0 0 38%;padding:2rem;background:linear-gradient(to right,#140a23,#1e0c33);box-shadow:inset 0 -2px 10px rgba(255,255,255,.02);border-bottom:1px solid #2c2c2c;border-radius:0 0 24px 24px}
 .calendar-placeholder{background:linear-gradient(to bottom right,#25163b,#301e48);border:2px dashed rgba(255,255,255,.1);border-radius:16px;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#c9b9ff;backdrop-filter:blur(12px)}
@@ -11,7 +12,14 @@ linear-gradient(145deg,#1a0d2b,#0d0615);height:100vh;display:flex;flex-direction
 .entries-section{flex:1;padding:1.5rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem;background:linear-gradient(to bottom,#1a0f2c,#0c0613)}
 .entry{background:rgba(255,255,255,.04);border-left:4px solid;padding:1rem 1.25rem;border-radius:18px;backdrop-filter:blur(20px);box-shadow:0 10px 40px rgba(160,80,255,.35);position:relative;animation:floatPulse 6s ease-in-out infinite}
 .entry.done{opacity:.55;text-decoration:line-through;animation:none}
-@keyframes floatPulse{0%{transform:translateY(0)}50%{transform:translateY(-6px) scale(1.01)}100%{transform:translateY(0)}}
+.main, .content, .panel, .profile-panel, .feed-panel {
+  min-height: 100vh;
+  overflow: auto;
+}
+
+.modal-open {                     /* if you use modals, lock only then */
+  overflow: hidden;
+}
 
 /* Landing Page Styles */
 .landing-container {
@@ -198,6 +206,14 @@ linear-gradient(145deg,#1a0d2b,#0d0615);height:100vh;display:flex;flex-direction
   .features-preview {
     flex-direction: column;
     align-items: center;
+  }
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .nav-links .nav-link {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -926,9 +942,22 @@ linear-gradient(145deg,#1a0d2b,#0d0615);height:100vh;display:flex;flex-direction
   .nav-links {
     gap: 0.5rem;
   }
-
-  .nav-links .nav-link {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-  }
 }
+
+/* Resource Gallery Tiles */
+#resourceGallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+.resource-tile {
+  display: block;
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(163, 101, 255, .15);
+  transition: transform .25s ease;
+}
+.resource-tile:hover { transform: translateY(-2px); }
+.resource-tile img { width: 100%; height: 120px; object-fit: cover; display: block; }
+.resource-tile .caption { display:block; padding:8px 10px; font-size:.85rem; color:#cfc7ff; }

@@ -10,6 +10,11 @@ import multer from 'multer';
 import fs from 'fs';
 import cors from 'cors';
 
+// Environment variable guard - helps debug missing vars
+['DISCORD_TOKEN','CLIENT_ID','CLIENT_SECRET','REDIRECT_URI','SITE_URL',
+ 'GUILD_ID','RESOURCES_CHANNEL_ID','SESSION_SECRET'
+].forEach(k => { if (!process.env[k]) console.warn(`[env] ${k} is missing`); });
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -166,30 +171,35 @@ app.post('/api/upload/manifest', async (req, res) => {
 
 // ---- Profile & Badges API (Discord as storage) ----
 
-// Profile read
-app.get('/api/profile/:userId', requireAuthJson, async (req, res) => {
+// Profile API - Get current user's profile
+app.get('/api/profile', requireAuthJson, async (req, res) => {
   try {
-    const { PROFILES_CHANNEL_ID } = process.env;
-    if (!PROFILES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'PROFILES_CHANNEL_ID not configured' });
+    const user = req.user || req.session.user;
+    if (!user) return res.status(401).json({ error: 'not-authenticated' });
 
-    const userId = req.params.userId;
-    const found = await fetchAttachmentJsonByPrefix(PROFILES_CHANNEL_ID, `profile-${userId}.json`);
+    const { GUILD_ID } = process.env;
+    let roles = [];
+
+    try {
+      if (GUILD_ID && client?.guilds?.cache) {
+        const guild = await client.guilds.fetch(GUILD_ID);
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        roles = member ? member.roles.cache.map(r => ({ id: r.id, name: r.name })) : [];
+      }
+    } catch (error) {
+      console.error('Error fetching guild roles:', error);
+    }
+
     res.json({
       ok: true,
-      profile: found || {
-        kind: 'doomzy/profile@1',
-        userId,
-        displayName: req.user?.global_name || req.user?.username || 'User',
-        status: '',
-        avatarMediaId: null,
-        galleryMediaIds: [],
-        badges: [],
-        updatedAt: Date.now()
-      }
+      id: user.id,
+      username: user.username,
+      avatar: user.avatar,
+      roles
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false, error: e.message });
+  } catch (error) {
+    console.error('Profile error:', error);
+    res.status(500).json({ error: 'server' });
   }
 });
 
@@ -262,30 +272,28 @@ app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
 });
 
 // Resources gallery
-app.get('/api/resources/latest', requireAuthJson, async (req, res) => {
+app.get('/api/resources', requireAuthJson, async (req, res) => {
   try {
-    const { RESOURCES_CHANNEL_ID } = process.env;
-    if (!RESOURCES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'RESOURCES_CHANNEL_ID not configured' });
+    const chanId = process.env.RESOURCES_CHANNEL_ID;
+    if (!chanId) return res.status(500).json({ error: 'missing RESOURCES_CHANNEL_ID' });
 
-    const ch = await client.channels.fetch(RESOURCES_CHANNEL_ID);
-    const coll = await ch.messages.fetch({ limit: 50 }).catch(() => null);
-    if (!coll) return res.json({ ok: true, items: [] });
+    const chan = await client.channels.fetch(chanId);
+    if (!chan || !chan.isTextBased()) return res.status(500).json({ error: 'bad-channel' });
 
-    const items = [];
-    for (const m of coll.values()) {
-      const att = m.attachments?.first();
-      if (!att) continue;
-      items.push({
-        messageId: m.id,
-        fileName: att.name,
-        contentType: att.contentType || null,
-        size: att.size || null
-      });
-    }
-    res.json({ ok: true, items });
+    const msgs = await chan.messages.fetch({ limit: 100 });
+    const items = [...msgs.values()].flatMap(m =>
+      m.attachments.size ? [...m.attachments.values()] : []
+    ).map(a => ({
+      id: a.id,
+      url: a.url,
+      name: a.name,
+      size: a.size
+    }));
+
+    res.json({ items });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false, error: e.message });
+    console.error('Resources error', e);
+    res.status(500).json({ error: 'server' });
   }
 });
 
@@ -319,12 +327,6 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'ping') {
     await interaction.reply('Pong from DoomzyInkBot!');
   }
-});
-
-// Start server & bot
-const port = process.env.PORT || 8080;
-app.listen(port, () => {
-  console.log(`🌐 Web server running on :${port}`);
 });
 
 client.login(process.env.DISCORD_TOKEN).catch(err => {
