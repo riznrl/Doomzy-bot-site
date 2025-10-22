@@ -38,7 +38,7 @@ RESOURCES_CHANNEL_ID=your_resources_channel_id
 GUILD_ID=your_guild_id_here
 SITE_URL=http://localhost:8080
 SESSION_SECRET=your_random_secret_string
-ALLOWED_USER_IDS=your_discord_user_id_here
+GLOBAL_FEED_CHANNEL_ID=your_global_feed_channel_id
 ```
 
 **Note**: Set `ALLOWED_USER_IDS` to your Discord user ID (or comma-separated list of allowed IDs) to restrict access. Leave empty to allow all authenticated users.
@@ -49,6 +49,7 @@ ALLOWED_USER_IDS=your_discord_user_id_here
    - `#badges` - For storing the badges registry
    - `#resources` - For storing avatar images and other media files
    - `#tasks` - For storing task data
+   - `#global-feed` - For storing global feed posts (one message = one post)
    - `#storage` - For file uploads and attachments
 
 2. Copy each channel ID and add them to your `.env` file
@@ -104,9 +105,8 @@ Your bot needs these permissions in the channels where it will operate:
 - `GET /api/badges` - Get available badges registry
 - `GET /api/resources` - Get resources for gallery
 - `GET /api/media/:messageId` - Media proxy for avatars and badges
-- `POST /api/tasks` - Create tasks (Discord bot integration)
-- `POST /api/upload/chunk` - Upload file chunks
-- `POST /api/upload/manifest` - Complete file upload
+- `GET /api/global/feed` - Get global feed posts
+- `POST /api/global/post` - Post to global feed
 - Discord OAuth endpoints: `/auth/login`, `/auth/callback`, `/auth/logout`
 
 ## Railway Deployment

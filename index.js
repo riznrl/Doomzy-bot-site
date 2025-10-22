@@ -36,6 +36,7 @@ const BADGES_CHANNEL_ID    = env('BADGES_CHANNEL_ID');
 const RESOURCES_CHANNEL_ID = env('RESOURCES_CHANNEL_ID');
 const TASKS_CHANNEL_ID     = env('TASKS_CHANNEL_ID');
 const STORAGE_CHANNEL_ID   = env('STORAGE_CHANNEL_ID');
+const GLOBAL_FEED_CHANNEL_ID = env('GLOBAL_FEED_CHANNEL_ID');
 
 // OAuth settings
 const CLIENT_ID     = env('CLIENT_ID');
@@ -82,7 +83,8 @@ app.get('/status', (_req, res) => {
     profiles: Boolean(PROFILES_CHANNEL_ID),
     resources: Boolean(RESOURCES_CHANNEL_ID),
     badges: Boolean(BADGES_CHANNEL_ID),
-    tasks: Boolean(TASKS_CHANNEL_ID)
+    tasks: Boolean(TASKS_CHANNEL_ID),
+    globalFeed: Boolean(GLOBAL_FEED_CHANNEL_ID)
   });
 });
 
@@ -232,6 +234,41 @@ async function fetchAttachmentJsonByPrefix(channelId, filenameStartsWith) {
 // Disk upload temp (site-side uploads -> bot forwards to Discord storage channel)
 const upload = multer({ dest: 'uploads/' });
 
+// Upload -> Discord RESOURCES channel (direct upload)
+app.post('/api/resources/upload', requireAuthJson, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'no_file' });
+    if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
+
+    const ch = client.channels.cache.get(process.env.RESOURCES_CHANNEL_ID);
+    if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
+
+    // If fits under 8MB, send directly. If larger, chunking.
+    const MAX = 7.8 * 1024 * 1024;
+    const buf = req.file.buffer || fs.readFileSync(req.file.path);
+    if (buf.length <= MAX) {
+      const msg = await ch.send({ files: [{ attachment: buf, name: req.file.originalname }] });
+      fs.unlinkSync(req.file.path);
+      return res.json({ ok: true, messageId: msg.id, name: req.file.originalname, size: buf.length });
+    }
+
+    // Quick chunk (simple series; can optimize later)
+    const chunks = [];
+    for (let i = 0; i < buf.length; i += MAX) chunks.push(buf.slice(i, i + MAX));
+    const ids = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const partName = `${req.file.originalname}.part${String(i + 1).padStart(3, '0')}`;
+      const msg = await ch.send({ files: [{ attachment: chunks[i], name: partName }] });
+      ids.push(msg.id);
+    }
+    fs.unlinkSync(req.file.path);
+    return res.json({ ok: true, chunked: true, parts: ids, total: chunks.length, name: req.file.originalname });
+  } catch (err) {
+    console.error('upload failed', err);
+    res.status(500).json({ ok: false, error: 'upload_failed' });
+  }
+});
+
 // Chunked upload: receive chunks from site, send to Discord channel
 app.post('/api/upload/chunk', upload.single('chunk'), async (req, res) => {
   try {
@@ -373,6 +410,53 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
   } catch (e) {
     console.error('Resources error', e);
     res.status(500).json({ error: 'server' });
+  }
+});
+
+// ---- Global Feed API routes ----
+// Post a status to the global feed
+app.post('/api/global/post', requireAuthJson, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ ok: false, error: 'empty' });
+
+    if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
+    if (!GLOBAL_FEED_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'no_channel' });
+
+    const ch = client.channels.cache.get(GLOBAL_FEED_CHANNEL_ID);
+    if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
+
+    const author = req.user || req.session.user;
+    if (!author) return res.status(401).json({ ok: false, error: 'not_authenticated' });
+
+    const content = `**${author.username}**: ${text}`.slice(0, 1900);
+
+    const msg = await ch.send({ content });
+    res.json({ ok: true, id: msg.id, ts: msg.createdTimestamp });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: 'post_fail' });
+  }
+});
+
+// Get last N items from global feed
+app.get('/api/global/feed', requireAuthJson, async (req, res) => {
+  try {
+    if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
+    if (!GLOBAL_FEED_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'no_channel' });
+
+    const ch = client.channels.cache.get(GLOBAL_FEED_CHANNEL_ID);
+    if (!ch) return res.status(500).json({ ok: false, error: 'channel_missing' });
+
+    const limit = Math.min(Number(req.query.limit) || 25, 50);
+    const msgs = await ch.messages.fetch({ limit });
+    const items = [...msgs.values()]
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+      .map(m => ({ id: m.id, content: m.content, author: m.author?.username, ts: m.createdTimestamp }));
+    res.json({ ok: true, items });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: 'feed_fail' });
   }
 });
 

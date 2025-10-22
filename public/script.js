@@ -1,6 +1,6 @@
 async function refreshStatus(){
   try{
-    const r = await fetch('/api/status');
+    const r = await fetch('/api/status', { credentials: 'include' });
     const j = await r.json();
     document.getElementById('botStatus').innerText = j.ok && j.bot ? `Online (${j.bot})` : 'offline';
   }catch(e){ document.getElementById('botStatus').innerText='offline'; }
@@ -77,7 +77,12 @@ function setupDashboardEventListeners() {
     const priority = document.getElementById('priority').value;
     if(!title || !due) return alert('Title and date required');
     const id = uid();
-    const res = await fetch('/api/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({title, due, priority, id})});
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({title, due, priority, id})
+    });
     const j = await res.json();
     if(j.ok){
       const div = document.createElement('div');
@@ -110,7 +115,7 @@ function setupDashboardEventListeners() {
 
 async function loadUserInfo() {
   try {
-    const res = await fetch('/auth/me');
+    const res = await fetch('/auth/me', { credentials: 'include' });
     const data = await res.json();
     if (data.ok) {
       document.getElementById('userInfo').innerHTML = `
@@ -142,7 +147,7 @@ function setupProfilePage() {
 
 async function loadProfileData() {
   try {
-    const me = await (await fetch('/auth/me')).json();
+    const me = await (await fetch('/auth/me', { credentials: 'include' })).json();
     if (!me?.user) {
       window.location.href = '/';
       return;
@@ -156,7 +161,7 @@ async function loadProfileData() {
     const prof = await profRes.json();
 
     // Load badges
-    const badgesRes = await fetch('/api/badges');
+    const badgesRes = await fetch('/api/badges', { credentials: 'include' });
     const badgeList = (await badgesRes.json()).badges || [];
 
     // Populate form fields
@@ -259,6 +264,7 @@ async function loadProfileData() {
           const res = await fetch('/api/profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify(body)
           });
 
@@ -292,7 +298,8 @@ async function uploadFile(file) {
 
     const res = await fetch('/api/upload/chunk', {
       method: 'POST',
-      body: formData
+      body: formData,
+      credentials: 'include'
     });
 
     const result = await res.json();
