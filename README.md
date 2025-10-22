@@ -97,17 +97,51 @@ Your bot needs these permissions in the channels where it will operate:
 - `GET /dashboard` - Protected dashboard (requires authentication)
 - `GET /profile.html` - User profile management page
 - `GET /resources.html` - Resources gallery page
-- `GET /api/status` - Bot status and health check
-- `GET /api/profile/:userId` - Get user profile data
+- `GET /healthz` - Railway health check
+- `GET /status` - Service status and configuration info
+- `GET /api/profile` - Get current user profile data
 - `POST /api/profile` - Update user profile (bio, badges, avatar)
 - `GET /api/badges` - Get available badges registry
-- `GET /api/resources/latest` - Get latest resources for gallery
+- `GET /api/resources` - Get resources for gallery
 - `GET /api/media/:messageId` - Media proxy for avatars and badges
 - `POST /api/tasks` - Create tasks (Discord bot integration)
 - `POST /api/upload/chunk` - Upload file chunks
 - `POST /api/upload/manifest` - Complete file upload
 - Discord OAuth endpoints: `/auth/login`, `/auth/callback`, `/auth/logout`
 
-## Deployment
+## Railway Deployment
 
-Deploy on Railway, Heroku, or any Node.js hosting platform. Make sure to set all environment variables correctly.
+This application is hardened for Railway deployment with crash guards and health endpoints.
+
+### Health Endpoints
+- `GET /healthz` - Simple health check for Railway (returns `ok`)
+- `GET /status` - Detailed status with bot and configuration info
+- `GET /api/status` - Bot status and system information
+
+### Deployment Features
+- **Crash-resistant**: HTTP server starts first, bot login is non-fatal
+- **Environment guards**: Console warnings for missing critical variables
+- **Robust auth**: Handles session failures gracefully
+- **Error handling**: All API endpoints handle Discord bot unavailability
+
+### Required Environment Variables
+
+Set these in Railway → Variables:
+
+```
+DISCORD_TOKEN=your_bot_token_here
+CLIENT_ID=your_client_id_here
+CLIENT_SECRET=your_client_secret_here
+REDIRECT_URI=https://your-domain.com/auth/callback
+SITE_URL=https://your-domain.com
+GUILD_ID=your_guild_id_here
+RESOURCES_CHANNEL_ID=your_resources_channel_id
+BADGES_CHANNEL_ID=your_badges_channel_id
+PROFILES_CHANNEL_ID=your_profiles_channel_id
+TASKS_CHANNEL_ID=your_tasks_channel_id
+STORAGE_CHANNEL_ID=your_storage_channel_id
+ALLOWED_USER_IDS=1417596590335725710
+SESSION_SECRET=your_long_random_string
+```
+
+**Note**: `ALLOWED_USER_IDS` accepts comma-separated values or JSON arrays like `["1417596590335725710"]`.
