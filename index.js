@@ -41,7 +41,7 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
   app.use(passport.session());
   app.get('/auth/login', passport.authenticate('discord'));
   app.get('/auth/callback', passport.authenticate('discord', { failureRedirect: '/?login=failed' }), (req, res) => {
-    res.redirect('/?login=success');
+    res.redirect('/dashboard?login=success');
   });
   app.get('/auth/me', (req, res) => {
     if (!req.user) return res.status(401).json({ ok: false });
@@ -52,6 +52,24 @@ if (process.env.CLIENT_ID && process.env.REDIRECT_URI) {
 
 // ---- Static site ----
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  if (req.user) {
+    return next();
+  }
+  res.redirect('/?login=required');
+}
+
+// Dashboard route (protected)
+app.get('/dashboard', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Root route - always serve the landing page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ---- Discord bot ----
 const client = new Client({

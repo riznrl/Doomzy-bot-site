@@ -12,3 +12,318 @@ linear-gradient(145deg,#1a0d2b,#0d0615);height:100vh;display:flex;flex-direction
 .entry{background:rgba(255,255,255,.04);border-left:4px solid;padding:1rem 1.25rem;border-radius:18px;backdrop-filter:blur(20px);box-shadow:0 10px 40px rgba(160,80,255,.35);position:relative;animation:floatPulse 6s ease-in-out infinite}
 .entry.done{opacity:.55;text-decoration:line-through;animation:none}
 @keyframes floatPulse{0%{transform:translateY(0)}50%{transform:translateY(-6px) scale(1.01)}100%{transform:translateY(0)}}
+
+/* Landing Page Styles */
+.landing-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: radial-gradient(ellipse at center, rgba(180, 80, 255, 0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at top right, rgba(110, 50, 255, 0.1) 0%, transparent 50%);
+}
+
+.hero-section {
+  text-align: center;
+  max-width: 600px;
+  width: 100%;
+}
+
+.logo-container {
+  margin-bottom: 3rem;
+}
+
+.main-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #b47cff, #8b5cf6, #6366f1);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0 0 1rem 0;
+  text-shadow: 0 0 30px rgba(180, 124, 255, 0.5);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  color: #d9bfff;
+  margin: 0;
+  font-weight: 400;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 2.5rem;
+  margin-bottom: 3rem;
+  box-shadow: 0 20px 60px rgba(160, 80, 255, 0.15);
+  animation: floatPulse 8s ease-in-out infinite;
+}
+
+.login-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.discord-logo {
+  color: #5865f2;
+  opacity: 0.9;
+}
+
+.login-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+  color: #fff;
+}
+
+.login-description {
+  font-size: 1rem;
+  color: #b8b8b8;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 400px;
+}
+
+.discord-login-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: #5865f2;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+}
+
+.discord-login-btn:hover {
+  background: #4752c4;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
+}
+
+.discord-login-btn:active {
+  transform: translateY(0);
+}
+
+.login-info {
+  margin-top: 0.5rem;
+}
+
+.login-info small {
+  color: #888;
+  font-size: 0.875rem;
+}
+
+.features-preview {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.feature-item:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(180, 124, 255, 0.3);
+}
+
+.feature-icon {
+  font-size: 1.5rem;
+}
+
+.feature-text {
+  font-size: 0.875rem;
+  color: #c9b9ff;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-title {
+    font-size: 2.5rem;
+  }
+
+  .login-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .features-preview {
+    gap: 1rem;
+  }
+
+  .feature-item {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-title {
+    font-size: 2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .discord-login-btn {
+    padding: 0.875rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .features-preview {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Dashboard Styles */
+.dashboard-container {
+  flex: 1;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  background: linear-gradient(to bottom, #1a0f2c, #0c0613);
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.dashboard-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #b47cff, #8b5cf6, #6366f1);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0 0 0.5rem 0;
+  text-shadow: 0 0 30px rgba(180, 124, 255, 0.5);
+  letter-spacing: -0.02em;
+}
+
+.dashboard-subtitle {
+  font-size: 1.1rem;
+  color: #d9bfff;
+  margin: 0;
+  font-weight: 400;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 40px rgba(160, 80, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: floatPulse 6s ease-in-out infinite;
+}
+
+.card-header {
+  margin-bottom: 1rem;
+}
+
+.card-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+}
+
+.card-description {
+  font-size: 0.9rem;
+  color: #c9b9ff;
+  margin: 0;
+}
+
+.calendar-placeholder, .files-placeholder {
+  flex: 1;
+  background: linear-gradient(to bottom right, #25163b, #301e48);
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #c9b9ff;
+  backdrop-filter: blur(12px);
+  min-height: 200px;
+}
+
+.upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.upload-btn {
+  padding: 0.8rem 1.5rem;
+  background: #a365ff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  color: #111;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.upload-btn:hover {
+  background: #8b5cf6;
+  transform: translateY(-2px);
+}
+
+.upload-info {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0;
+}
+
+.tasks-card .entries-section {
+  flex: 1;
+  padding: 0;
+  background: none;
+  gap: 0.75rem;
+}
+
+#userInfo {
+  color: #d9bfff;
+  font-size: 0.9rem;
+}

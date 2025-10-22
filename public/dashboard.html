@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bigger is Better - Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="diagnostics-bar" id="diag">
+    <span>🟣 DoomzyInkBot: <b id="botStatus">checking…</b></span>
+    <span>
+      <span id="userInfo">Loading...</span>
+      <button id="logoutBtn" style="margin-left: 1rem; padding: 0.4rem 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.8rem;">Logout</button>
+    </span>
+  </div>
+
+  <div class="dashboard-container">
+    <div class="dashboard-header">
+      <h1 class="dashboard-title">BIGGER IS BETTER</h1>
+      <p class="dashboard-subtitle">Welcome to your productivity dashboard</p>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="dashboard-card calendar-card">
+        <div class="card-header">
+          <h2 class="card-title">📅 Calendar</h2>
+          <p class="card-description">Tasks attach to dates</p>
+        </div>
+        <div class="calendar-placeholder">📅 Calendar coming soon — tasks will attach to dates</div>
+      </div>
+
+      <div class="dashboard-card tasks-card">
+        <div class="card-header">
+          <h2 class="card-title">📝 Tasks</h2>
+          <p class="card-description">Manage your tasks and deadlines</p>
+        </div>
+        <div class="entries-section" id="taskContainer"></div>
+      </div>
+
+      <div class="dashboard-card files-card">
+        <div class="card-header">
+          <h2 class="card-title">📁 Files</h2>
+          <p class="card-description">Upload and manage your files</p>
+        </div>
+        <div class="files-placeholder">
+          <div class="upload-section">
+            <input type="file" id="fileInput" multiple style="display: none;">
+            <button id="uploadBtn" class="upload-btn">📤 Upload Files</button>
+            <p class="upload-info">Files are stored securely via Discord</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-container">
+      <input type="text" id="taskTitle" placeholder="What do you need to do?" />
+      <input type="date" id="taskDate" />
+      <select id="priority">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+      <button id="addTaskBtn">Add Task</button>
+    </div>
+  </div>
+
+<script src="/script.js"></script>
+</body>
+</html>
