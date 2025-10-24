@@ -11,6 +11,7 @@ import fs from 'fs';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { requireAuth } from './middleware/auth.js';
 
 // --- Minimal crash guard so Railway doesn't 502 ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
@@ -98,20 +99,6 @@ app.get('/status', (_req, res) => {
     siteAnnouncements: Boolean(SITE_ANNOUNCEMENTS_ID)
   });
 });
-
-// ---- Auth gate you already had; just make sure it never throws ---
-function requireAuth(req, res, next) {
-  try {
-    if (!req.session?.user) return res.redirect('/auth/login');
-    if (ALLOWED_USER_IDS.length && !ALLOWED_USER_IDS.includes(String(req.session.user.id))) {
-      return res.status(403).send('Access denied');
-    }
-    return next();
-  } catch (e) {
-    console.error('requireAuth error', e);
-    return res.redirect('/auth/login');
-  }
-}
 
 // ---- Discord OAuth2 (login) ----
 // TODO: keep your existing /auth/login, /auth/callback routes (do not crash if CLIENT_ID/SECRET missing)
