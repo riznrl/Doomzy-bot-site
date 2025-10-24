@@ -1,178 +1,77 @@
-# Bigger is Better - Dashboard & Discord Bot
+# Doomzy Bot Site
 
-A modern productivity dashboard with Discord integration. Features task management, file uploads, and a beautiful landing page with Discord OAuth authentication.
 
-## Features
+This is the official site interface for the **Doomzy** ecosystem. The project connects users via Discord and grants access only to approved community members. Windsurf handles deployments and UI improvements. This file outlines key behavior and expectations to keep development focused and safe.
 
-- 🎨 **Modern Landing Page**: "Bigger is Better" branded landing page with Discord login
-- 🔐 **Discord Authentication**: Secure OAuth login system
-- 👤 **User Profiles**: Complete profile system with bio, badges, and avatar management
-- 📁 **Resources Gallery**: Beautiful grid gallery for browsing and uploading files
-- 📅 **Task Management**: Create and manage tasks with priorities and due dates
-- 🤖 **Discord Bot Integration**: Bot handles task storage and file uploads
-- 📱 **Responsive Design**: Works on all devices
-- 🌈 **Beautiful UI**: Glassmorphism design with purple gradients
+---
 
-## Setup
+## 🔒 Access Control (Discord-Gated)
 
-### Discord Bot Setup
-1. Create a Discord application at https://discord.com/developers/applications
-2. Go to the "Bot" section and create a bot
-3. Copy the bot token
-4. Go to the "OAuth2" section and add the redirect URI: `https://yourdomain.com/auth/callback`
-5. Copy the Client ID
+- All users **can visit the login page**, but **no access is granted by default**.
+- The exception is the **admin user** (you) who bypasses restrictions.
+- If a user is **not part of the Discord server**, they must:
+  1. Fill out a **signup form** on the site.
+  2. That form includes:
+     - Full Name
+     - Discord ID
+     - Email
+     - Reason for Joining
+     - A **visual slider** to confirm submission
+  3. The form is posted by the Discord bot into a **private channel** (e.g. `#signup-requests`).
+  4. Admins review the form and change the user's **Discord role** if approved.
+  5. Users with the correct role are allowed access on next login.
 
-### Environment Variables
-Create a `.env` file with:
-```
-DISCORD_TOKEN=your_bot_token_here
-CLIENT_ID=your_client_id_here
-CLIENT_SECRET=your_client_secret_here
-REDIRECT_URI=http://localhost:8080/auth/callback
-PORT=8080
-STORAGE_CHANNEL_ID=your_storage_channel_id
-TASKS_CHANNEL_ID=your_tasks_channel_id
-PROFILES_CHANNEL_ID=your_profiles_channel_id
-BADGES_CHANNEL_ID=your_badges_channel_id
-RESOURCES_CHANNEL_ID=your_resources_channel_id
-GUILD_ID=your_guild_id_here
-SITE_URL=http://localhost:8080
-SESSION_SECRET=your_random_secret_string
-GLOBAL_FEED_CHANNEL_ID=your_global_feed_channel_id
-SITE_ANNOUNCEMENTS_ID=your_site_announcements_channel_id
-```
+---
 
-**Note**: Set `ALLOWED_USER_IDS` to your Discord user ID (or comma-separated list of allowed IDs) to restrict access. Leave empty to allow all authenticated users.
+## ✅ Tomorrow’s Task Coverage
 
-### Discord Channel Setup
-1. Create these channels in your Discord server:
-   - `#profiles` - For storing user profile data (JSON files)
-   - `#badges` - For storing the badges registry
-   - `#resources` - For storing avatar images and other media files
-   - `#tasks` - For storing task data
-   - `#global-feed` - For storing global feed posts (one message = one post)
-   - `#site-announcements` - For broadcasting site-wide announcements (triggers notifications)
-   - `#storage` - For file uploads and attachments
+These items are built or scheduled:
+- [x] Real-time global feed (via Socket.io)
+- [x] Site-wide persistent voice chat (under construction)
+- [x] Custom user profiles with banner image
+- [x] Clicking a user in a feed links to their profile
+- [x] Role-based gating at login
+- [x] `#signup-requests` approval queue from form
+- [ ] Animated site announcement notification system
+- [ ] Better skinning of VC UI
+- [ ] Integrated header nav bar (`Global Feed`, `Search`, `Settings`, `Profile`)
 
-2. Copy each channel ID and add them to your `.env` file
+---
 
-### Badge System Setup
-1. Upload your badge icons (PNG files) to the `#resources` channel
-2. Note the message IDs of each badge icon
-3. Create a `badges.json` file with your badge definitions:
-```json
-{
-  "kind": "doomzy/badges@1",
-  "badges": [
-    { "id": "vip", "label": "VIP", "mediaId": "your_message_id_here" },
-    { "id": "editor", "label": "Editor", "mediaId": "your_message_id_here" }
-  ]
-}
-```
-4. Upload this file to your `#badges` channel via the Discord web interface
+## 🛠 Deployment Notes (Railway)
 
-### Running Locally
-```bash
-npm install
-npm start
+We are still deploying via [Railway](https://railway.app) until the current cycle ends. Once deployed, Windsurf can hot-patch updates as long as they follow the guidelines in this README.
+
+---
+
+## 🔁 DO NOT
+
+- Do **not** let any unapproved user enter the app.
+- Do **not** rewrite the login/approval flow unless instructed.
+- Do **not** remove any Discord or Socket.io connections.
+
+---
+
+## ⚙ Required ENV Vars
+
+Ensure the following variables exist in Railway:
+
+```env
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_BOT_TOKEN=
+DISCORD_GUILD_ID=
+DISCORD_REQUIRED_ROLE_ID=
+DISCORD_SIGNUP_CHANNEL_ID=
+APPROVED_USER_ID=  # Your own user ID, bypasses role check
 ```
 
-Visit `http://localhost:8080` to see the landing page!
+This ensures smooth operation with Discord API and secure user handling.
 
-## How It Works
+---
 
-1. **Landing Page**: Users see the "Bigger is Better" landing page with Discord login
-2. **Authentication**: OAuth flow redirects users through Discord
-3. **Dashboard**: After login, users access the full dashboard with tasks and file uploads
-4. **Bot Integration**: The Discord bot handles backend operations and storage
+## 🔧 Maintained By
 
-## Discord Bot Permissions
+This project is maintained by Windsurf and Doomzy Core.
 
-Your bot needs these permissions in the channels where it will operate:
-- Send Messages
-- Use Slash Commands
-- Attach Files
-- Read Message History
-
-## Endpoints
-
-- `GET /` - Landing page with Discord login
-- `GET /dashboard` - Protected dashboard (requires authentication)
-- `GET /profile.html` - User profile management page
-- `GET /tasks.html` - Task creation page
-- `POST /api/tasks/add` - Create tasks with Discord embeds
-- `GET /socket.io/socket.io.js` - Socket.IO client library
-- Real-time notifications via WebSocket for site announcements
-- `GET /status` - Service status and configuration info
-- `GET /api/profile` - Get current user profile data
-- `POST /api/profile` - Update user profile (bio, badges, avatar)
-- `GET /api/badges` - Get available badges registry
-- `GET /api/resources` - Get resources for gallery
-- `GET /api/media/:messageId` - Media proxy for avatars and badges
-- `GET /api/global/feed` - Get global feed posts
-- `POST /api/global/post` - Post to global feed
-- Discord OAuth endpoints: `/auth/login`, `/auth/callback`, `/auth/logout`
-
-## Site Announcements & Real-time Notifications
-
-The site includes a real-time announcement system that broadcasts messages from Discord to all connected web clients.
-
-### How It Works
-1. **Discord Integration**: When a user posts in the `#site-announcements` Discord channel, the bot detects it
-2. **WebSocket Broadcast**: The bot broadcasts the message via WebSocket to all connected clients
-3. **Visual Notification**: Users see a shake animation and sliding banner notification
-4. **Clickable Links**: Users can click the banner to open the Discord message
-
-### Setup
-1. Create a `#site-announcements` channel in your Discord server
-2. Set `SITE_ANNOUNCEMENTS_ID` in your Railway variables to the channel ID
-3. The system automatically activates when users visit any page
-
-### Features
-- ✅ **Real-time notifications** across all pages
-- ✅ **Shake animation** and visual feedback
-- ✅ **Auto-dismiss** after 5 seconds
-- ✅ **Clickable banners** that open Discord links
-- ✅ **Global availability** - works on every page
-
-### Testing
-1. Visit any page on your site
-2. Post a message in your `#site-announcements` Discord channel
-3. Watch for the notification banner to appear with shake animation
-
-## Railway Deployment
-
-This application is hardened for Railway deployment with crash guards and health endpoints.
-
-### Health Endpoints
-- `GET /healthz` - Simple health check for Railway (returns `ok`)
-- `GET /status` - Detailed status with bot and configuration info
-- `GET /api/status` - Bot status and system information
-
-### Deployment Features
-- **Crash-resistant**: HTTP server starts first, bot login is non-fatal
-- **Environment guards**: Console warnings for missing critical variables
-- **Robust auth**: Handles session failures gracefully
-- **Error handling**: All API endpoints handle Discord bot unavailability
-
-### Required Environment Variables
-
-Set these in Railway → Variables:
-
-```
-DISCORD_TOKEN=your_bot_token_here
-CLIENT_ID=your_client_id_here
-CLIENT_SECRET=your_client_secret_here
-REDIRECT_URI=https://your-domain.com/auth/callback
-SITE_URL=https://your-domain.com
-GUILD_ID=your_guild_id_here
-RESOURCES_CHANNEL_ID=your_resources_channel_id
-BADGES_CHANNEL_ID=your_badges_channel_id
-PROFILES_CHANNEL_ID=your_profiles_channel_id
-TASKS_CHANNEL_ID=your_tasks_channel_id
-STORAGE_CHANNEL_ID=your_storage_channel_id
-ALLOWED_USER_IDS=1417596590335725710
-SESSION_SECRET=your_long_random_string
-```
-
-**Note**: `ALLOWED_USER_IDS` accepts comma-separated values or JSON arrays like `["1417596590335725710"]`.
+Pull requests must be approved before merging.
