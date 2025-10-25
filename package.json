@@ -6,10 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "NODE_ENV=development node index.js",
-    "debug": "node hydraDebug.js",
-    "test": "node hydraDebug.js",
-    "controlbridge": "node doomzy-controlbridge/index.js",
-    "task-executor": "node task-executor.js",
+    "bridge": "node doomzy-controlbridge/index.js",
     "register": "node utils/register-commands.js",
     "generate-token": "node generate-admin-token.js"
   },
