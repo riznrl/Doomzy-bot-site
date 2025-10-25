@@ -100,6 +100,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health for Railway
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
+// Health endpoint for GPT Failsafe system
+app.get('/health', (_req, res) => res.status(200).send('OK'));
+
 // Minimal health endpoint for diagnostics bar
 app.get('/api/status', async (req, res) => {
   res.json({
@@ -736,6 +739,8 @@ app.get('/api/media/:messageId', async (req, res, next) => {
     console.error(e);
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
 // Helper function for Discord channel operations
 async function fetchAttachmentJsonByPrefix(channelId, filenameStartsWith) {
   if (!client) return null;
