@@ -181,15 +181,99 @@ html, body {
   font-weight: 500;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .main-title {
-    font-size: 2.5rem;
-  }
+/* Signup Form Styles */
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
 
-  .login-logo {
-    width: 130px;
-  }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #d9bfff;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #b47cff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.slider-container {
+  margin: 1rem 0;
+}
+
+.slider-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #c9b9ff;
+  cursor: pointer;
+}
+
+.slider-label input[type="checkbox"] {
+  display: none;
+}
+
+.slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  transition: all 0.3s ease;
+}
+
+.slider:before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.slider-label input:checked + .slider {
+  background: #b47cff;
+}
+
+.slider-label input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.slider-label input:disabled + .slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
   .login-card {
     padding: 2rem 1.5rem;
@@ -963,20 +1047,47 @@ html, body {
   }
 }
 
-/* Resource Gallery Tiles */
-#resourceGallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
+/* Responsive Signup Form Styles */
+@media (max-width: 768px) {
+  .signup-form {
+    gap: 1rem;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .slider-label {
+    font-size: 0.8rem;
+  }
 }
-.resource-tile {
-  display: block;
-  border-radius: 14px;
-  background: rgba(255,255,255,.04);
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(163, 101, 255, .15);
-  transition: transform .25s ease;
+
+@media (max-width: 480px) {
+  .form-group input,
+  .form-group textarea {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.85rem;
+  }
+
+  .login-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .slider {
+    width: 38px;
+    height: 20px;
+  }
+
+  .slider:before {
+    width: 16px;
+    height: 16px;
+    top: 2px;
+    left: 2px;
+  }
+
+  .slider-label input:checked + .slider:before {
+    transform: translateX(18px);
+  }
 }
-.resource-tile:hover { transform: translateY(-2px); }
-.resource-tile img { width: 100%; height: 120px; object-fit: cover; display: block; }
-.resource-tile .caption { display:block; padding:8px 10px; font-size:.85rem; color:#cfc7ff; }

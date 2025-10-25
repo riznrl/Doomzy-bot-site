@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Doomzy - Request Access</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="landing-container">
+    <div class="hero-section">
+      <div class="logo-container">
+        <img class="login-logo" src="/images/doomzy-logo.png" alt="Doomzy Logo" />
+        <h1 class="main-title">DOOMZY</h1>
+        <div class="subtitle">Request Community Access</div>
+      </div>
+
+      <div class="login-card">
+        <div class="login-content">
+          <div class="discord-logo" aria-hidden="true"></div>
+          <h2 class="login-title">Join the Community</h2>
+          <p class="login-description">Fill out this form to request access to the Doomzy community dashboard. Our team will review your application and grant access if approved.</p>
+
+          <form id="signupForm" class="signup-form">
+            <div class="form-group">
+              <label for="fullName">Full Name</label>
+              <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name">
+            </div>
+
+            <div class="form-group">
+              <label for="discordId">Discord ID</label>
+              <input type="text" id="discordId" name="discordId" required placeholder="Your Discord username#0000 or User ID">
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <input type="email" id="email" name="email" required placeholder="your.email@example.com">
+            </div>
+
+            <div class="form-group">
+              <label for="reason">Reason for Joining</label>
+              <textarea id="reason" name="reason" required placeholder="Tell us why you want to join the Doomzy community..." rows="4"></textarea>
+            </div>
+
+            <div class="slider-container">
+              <label class="slider-label">
+                <input type="checkbox" id="confirmSlider" required>
+                <span class="slider"></span>
+                I confirm this information is accurate and I agree to follow community guidelines
+              </label>
+            </div>
+
+            <button type="submit" class="discord-login-btn" id="submitBtn">
+              Submit Application
+            </button>
+          </form>
+
+          <div class="login-info">
+            <small>📋 Applications are reviewed manually by our team</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="features-preview">
+        <div class="feature-item">
+          <div class="feature-icon">🔐</div>
+          <div class="feature-text">Secure Access</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🤖</div>
+          <div class="feature-text">Discord Integration</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📱</div>
+          <div class="feature-text">Mobile Friendly</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🌐</div>
+          <div class="feature-text">Real-time Updates</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/notifications.js"></script>
+<script>
+document.getElementById('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const submitBtn = document.getElementById('submitBtn');
+  const originalText = submitBtn.textContent;
+
+  // Show loading state
+  submitBtn.textContent = 'Submitting...';
+  submitBtn.disabled = true;
+
+  try {
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+
+    const response = await fetch('/api/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.ok) {
+      submitBtn.textContent = '✅ Application Submitted!';
+      submitBtn.style.background = '#10b981';
+
+      setTimeout(() => {
+        window.location.href = '/?signup=success';
+      }, 2000);
+    } else {
+      throw new Error(result.error || 'Submission failed');
+    }
+  } catch (error) {
+    console.error('Signup error:', error);
+    submitBtn.textContent = '❌ Submission Failed';
+    submitBtn.style.background = '#ef4444';
+
+    setTimeout(() => {
+      submitBtn.textContent = originalText;
+      submitBtn.disabled = false;
+      submitBtn.style.background = '';
+    }, 3000);
+  }
+});
+</script>
+</body>
+</html>

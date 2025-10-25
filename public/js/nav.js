@@ -34,11 +34,14 @@
           <a href="#" style="color:#dcd2ff;text-decoration:none;opacity:.75">Notifications</a>
         </div>
 
-        <a href="/profile.html" title="Profile" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:1px solid rgba(180,124,255,.35);color:#e6d9ff;text-decoration:none;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.336 0-8 2.164-8 4.5V21h16v-2.5C20 16.164 16.336 14 12 14Z"/>
-          </svg>
-        </a>
+        <div style="display:flex;align-items:center;gap:12px">
+          <a href="/signup.html" style="color:#b47cff;text-decoration:none;font-weight:600;opacity:.9">Join</a>
+          <a href="/profile.html" title="Profile" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:1px solid rgba(180,124,255,.35);color:#e6d9ff;text-decoration:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.336 0-8 2.164-8 4.5V21h16v-2.5C20 16.164 16.336 14 12 14Z"/>
+            </svg>
+          </a>
+        </div>
       </div>
     `;
 

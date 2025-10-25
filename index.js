@@ -11,7 +11,7 @@ import fs from 'fs';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { requireAuth } from './middleware/auth.js';
+import { requireAuth, setDiscordClient } from './middleware/auth.js';
 
 // --- Minimal crash guard so Railway doesn't 502 ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
@@ -134,20 +134,66 @@ if (CLIENT_ID && REDIRECT_URI) {
   app.get('/auth/logout', (req, res) => req.logout(() => res.redirect('/')));
 }
 
-// ---- Auth gate middleware (add this near the top, after session setup) ----
-const requireAuthJson = (req, res, next) => {
+// Signup request handler
+app.post('/api/signup', async (req, res) => {
   try {
-    const user = req.user || req.session?.user;
-    if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
-    if (ALLOWED_USER_IDS.length && !ALLOWED_USER_IDS.includes(String(user.id))) {
-      return res.status(403).json({ ok: false, error: 'Access denied' });
+    const { fullName, discordId, email, reason } = req.body;
+
+    // Validate required fields
+    if (!fullName || !discordId || !email || !reason) {
+      return res.status(400).json({ ok: false, error: 'missing_required_fields' });
     }
-    return next();
-  } catch (e) {
-    console.error('requireAuthJson error', e);
-    return res.status(401).json({ ok: false, error: 'Authentication error' });
+
+    const signupChannelId = process.env.DISCORD_SIGNUP_CHANNEL_ID;
+    if (!signupChannelId) {
+      console.error('DISCORD_SIGNUP_CHANNEL_ID not configured');
+      return res.status(500).json({ ok: false, error: 'signup_channel_not_configured' });
+    }
+
+    if (!client) {
+      console.error('Discord bot not available for signup processing');
+      return res.status(503).json({ ok: false, error: 'bot_not_available' });
+    }
+
+    // Create signup embed
+    const embed = {
+      title: '🆕 New Community Access Request',
+      color: 0x8b5cf6,
+      fields: [
+        { name: 'Full Name', value: fullName, inline: true },
+        { name: 'Discord ID', value: discordId, inline: true },
+        { name: 'Email', value: email, inline: true },
+        { name: 'Reason for Joining', value: reason.slice(0, 1000), inline: false },
+        { name: 'Submitted', value: new Date().toLocaleString(), inline: true },
+        { name: 'Status', value: '⏳ **Pending Review**', inline: true }
+      ],
+      footer: {
+        text: 'Use /approve or /reject commands to process this request'
+      }
+    };
+
+    // Send to signup channel
+    const channel = await client.channels.fetch(signupChannelId);
+    if (!channel) {
+      console.error(`Signup channel ${signupChannelId} not found`);
+      return res.status(500).json({ ok: false, error: 'signup_channel_not_found' });
+    }
+
+    const message = await channel.send({ embeds: [embed] });
+
+    console.log(`✅ Signup request submitted by ${fullName} (${discordId}) - Message ID: ${message.id}`);
+
+    res.json({
+      ok: true,
+      messageId: message.id,
+      message: 'Your application has been submitted successfully. You will be notified once it is reviewed.'
+    });
+
+  } catch (error) {
+    console.error('Signup submission error:', error);
+    res.status(500).json({ ok: false, error: 'signup_submission_failed' });
   }
-};
+});
 
 // Example protected route (profile)
 app.get('/profile.html', requireAuth, async (req, res) => {
@@ -171,9 +217,9 @@ app.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Root route - always serve the landing page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Serve signup page (no auth required - this is for new user requests)
+app.get('/signup.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 // ---- Discord bot (non-fatal) ----
@@ -181,9 +227,9 @@ let client = null;
 
 async function initBot() {
   try {
-    const token = env('DISCORD_TOKEN');
+    const token = env('DISCORD_BOT_TOKEN');
     if (!token) {
-      console.warn('No DISCORD_TOKEN provided, skipping bot initialization.');
+      console.warn('No DISCORD_BOT_TOKEN provided, skipping bot initialization.');
       return null;
     }
 
@@ -202,13 +248,73 @@ async function initBot() {
 
     client.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
+
       if (interaction.commandName === 'ping') {
         await interaction.reply('Pong from DoomzyInkBot!');
+      }
+
+      if (interaction.commandName === 'approve') {
+        const messageId = interaction.options.getString('message_id');
+        if (!messageId) {
+          return await interaction.reply({ content: '❌ Please provide a message ID to approve.', ephemeral: true });
+        }
+
+        try {
+          const channel = await interaction.guild.channels.fetch(process.env.DISCORD_SIGNUP_CHANNEL_ID);
+          const message = await channel.messages.fetch(messageId);
+
+          // Update the embed to show approved status
+          const embed = message.embeds[0];
+          if (embed) {
+            embed.fields.find(f => f.name === 'Status').value = '✅ **Approved**';
+            embed.color = 0x10b981; // Green color
+            await message.edit({ embeds: [embed] });
+          }
+
+          await interaction.reply({ content: `✅ Signup request ${messageId} has been approved!`, ephemeral: true });
+          console.log(`✅ Admin ${interaction.user.tag} approved signup request ${messageId}`);
+        } catch (error) {
+          console.error('Error approving signup:', error);
+          await interaction.reply({ content: '❌ Failed to approve signup request. Check if the message ID is valid.', ephemeral: true });
+        }
+      }
+
+      if (interaction.commandName === 'reject') {
+        const messageId = interaction.options.getString('message_id');
+        const reason = interaction.options.getString('reason') || 'No reason provided';
+
+        if (!messageId) {
+          return await interaction.reply({ content: '❌ Please provide a message ID to reject.', ephemeral: true });
+        }
+
+        try {
+          const channel = await interaction.guild.channels.fetch(process.env.DISCORD_SIGNUP_CHANNEL_ID);
+          const message = await channel.messages.fetch(messageId);
+
+          // Update the embed to show rejected status
+          const embed = message.embeds[0];
+          if (embed) {
+            embed.fields.find(f => f.name === 'Status').value = '❌ **Rejected**';
+            embed.fields.push({ name: 'Rejection Reason', value: reason, inline: false });
+            embed.color = 0xef4444; // Red color
+            await message.edit({ embeds: [embed] });
+          }
+
+          await interaction.reply({ content: `❌ Signup request ${messageId} has been rejected.`, ephemeral: true });
+          console.log(`❌ Admin ${interaction.user.tag} rejected signup request ${messageId}: ${reason}`);
+        } catch (error) {
+          console.error('Error rejecting signup:', error);
+          await interaction.reply({ content: '❌ Failed to reject signup request. Check if the message ID is valid.', ephemeral: true });
+        }
       }
     });
 
     await client.login(token);
     await registerCommands();
+
+    // Set the Discord client in the auth middleware for role checking
+    setDiscordClient(client);
+
     return client;
   } catch (error) {
     console.error('Failed to initialize bot (non-fatal):', error.message);
@@ -536,9 +642,18 @@ const commands = [
     .addStringOption(opt => opt.setName('page').setDescription('page name').setRequired(true)),
   new SlashCommandBuilder()
     .setName('ping')
-    .setDescription('Health check')
+    .setDescription('Health check'),
+  new SlashCommandBuilder()
+    .setName('approve')
+    .setDescription('Approve a signup request by message ID')
+    .addStringOption(opt => opt.setName('message_id').setDescription('Discord message ID of the signup request').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('reject')
+    .setDescription('Reject a signup request by message ID')
+    .addStringOption(opt => opt.setName('message_id').setDescription('Discord message ID of the signup request').setRequired(true))
+    .addStringOption(opt => opt.setName('reason').setDescription('Reason for rejection').setRequired(false))
 ];
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || '');
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN || '');
 
 async function registerCommands() {
   try {
@@ -585,9 +700,9 @@ function setupDiscordListeners(bot) {
 // ---- Log in the Discord bot, but do NOT crash the HTTP server if login fails ---
 (async () => {
   try {
-    const token = env('DISCORD_TOKEN');
+    const token = env('DISCORD_BOT_TOKEN');
     if (!token) {
-      console.warn('No DISCORD_TOKEN provided, skipping bot login.');
+      console.warn('No DISCORD_BOT_TOKEN provided, skipping bot login.');
       return;
     }
     const bot = await initBot();

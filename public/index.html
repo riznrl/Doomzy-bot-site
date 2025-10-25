@@ -35,6 +35,8 @@
           </button>
           <div class="login-info">
             <small>🔒 Secure authentication powered by Discord</small>
+            <br>
+            <small><a href="/signup.html" style="color: #b47cff;">Not a member? Request access here</a></small>
           </div>
         </div>
       </div>
@@ -60,9 +62,51 @@
     </div>
   </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="/js/notifications.js"></script>
-<script src="/script.js"></script>
-<script defer src="/js/nav.js"></script>
+  <script>
+    // Handle signup success message
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('signup') === 'success') {
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(90deg, #10b981, #059669);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+        z-index: 10000;
+        font-weight: 600;
+        animation: slideInRight 0.5s ease;
+      `;
+      notification.innerHTML = '✅ Application submitted successfully! Check your email for updates.';
+      document.body.appendChild(notification);
+
+      // Remove success parameter from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Auto-remove notification after 5 seconds
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.5s ease';
+        setTimeout(() => notification.remove(), 500);
+      }, 5000);
+    }
+
+    // Add slide animations
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideOutRight {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
 </body>
 </html>
