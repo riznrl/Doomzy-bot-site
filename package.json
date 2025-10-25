@@ -4,21 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "NODE_ENV=development node index.js",
+    "start": "node startup.js",
+    "dev": "NODE_ENV=development node startup.js",
+    "debug": "node hydraDebug.js",
+    "test": "node hydraDebug.js",
     "register": "node utils/register-commands.js"
   },
   "dependencies": {
+    "axios": "^1.12.2",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
     "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-session": "^1.17.3",
     "multer": "^1.4.5-lts.1",
     "node-fetch": "^3.3.2",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
-    "express-session": "^1.17.3",
-    "dotenv": "^16.4.5",
-    "cors": "^2.8.5",
-    "dayjs": "^1.11.13",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
   }

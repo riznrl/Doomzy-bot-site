@@ -1,0 +1,27 @@
+
+DOOMZY CONTROLBRIDGE SETUP (Node.js Version)
+
+1. Place the `doomzy-controlbridge/` folder in your project root.
+
+2. Install dependencies:
+   > npm install express body-parser
+
+3. Run the bridge:
+   > node doomzy-controlbridge/index.js
+
+4. Send logs to:
+   POST http://localhost:3001/log
+   {
+       "log": "Your error here"
+   }
+
+5. Send Windsurf prompt instructions to:
+   POST http://localhost:3001/windsurf-task
+   {
+       "task": "# markdown with your instructions"
+   }
+
+6. Your Windsurf agent should regularly check doomzy-controlbridge/windsurf-patch.md
+   for the latest changes and execute them.
+
+7. Discord bot should POST errors and alerts to /log.

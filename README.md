@@ -38,40 +38,54 @@ These items are built or scheduled:
 
 ---
 
-## 🛠 Deployment Notes (Railway)
+## 🧪 HydraCheck Debug System
 
-We are still deploying via [Railway](https://railway.app) until the current cycle ends. Once deployed, Windsurf can hot-patch updates as long as they follow the guidelines in this README.
+Doomzy includes a comprehensive debugging system called **HydraCheck** that validates all critical systems before deployment.
 
----
+### Running HydraCheck
 
-## 🔁 DO NOT
+```bash
+# Run comprehensive system validation
+npm run debug
+# or
+npm test
 
-- Do **not** let any unapproved user enter the app.
-- Do **not** rewrite the login/approval flow unless instructed.
-- Do **not** remove any Discord or Socket.io connections.
-
----
-
-## ⚙ Required ENV Vars
-
-Ensure the following variables exist in Railway:
-
-```env
-DISCORD_CLIENT_ID=
-DISCORD_CLIENT_SECRET=
-DISCORD_BOT_TOKEN=
-DISCORD_GUILD_ID=
-DISCORD_REQUIRED_ROLE_ID=
-DISCORD_SIGNUP_CHANNEL_ID=
-APPROVED_USER_ID=  # Your own user ID, bypasses role check
+# Or run directly
+node hydraDebug.js
 ```
 
-This ensures smooth operation with Discord API and secure user handling.
+### What HydraCheck Validates
+
+- ✅ **Environment Variables**: All required variables are present and valid
+- ✅ **Discord Bot Connection**: Bot can login with proper intents
+- ✅ **Server Health**: All endpoints respond correctly
+- ✅ **API Routes**: Authentication and functionality work properly
+- ✅ **File System**: Required directories and assets exist
+- ✅ **Code Structure**: All imports and middleware load without errors
+
+### HydraCheck Output
+
+The system provides color-coded output:
+- 🟢 **Green**: System working correctly
+- 🔴 **Red**: Critical failure detected
+- 🟡 **Yellow**: Warning or optional feature
+
+### Debug Report
+
+HydraCheck generates a detailed report in `hydra_debug_report.txt` with:
+- Timestamped error logs
+- Specific failure reasons
+- Environment validation status
+- API endpoint health checks
+
+### Railway Integration
+
+The startup process automatically runs a lightweight version of HydraCheck before starting the server:
+
+```bash
+npm start  # Runs HydraCheck validation then starts server
+```
 
 ---
 
-## 🔧 Maintained By
-
-This project is maintained by Windsurf and Doomzy Core.
-
-Pull requests must be approved before merging.
+## 🛠 Deployment Notes (Railway)
