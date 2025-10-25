@@ -83,12 +83,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors());
 
-// --- Health and status routes ---
-app.get('/healthz', (_req, res) => res.status(200).send('ok'));
+// --- ✅ HEALTH + STATUS ROUTES (Railway critical fix) ---
 
-// ✅ Add default root endpoint to satisfy Railway health checks
-app.get('/', (_req, res) => res.status(200).send('DoomzyInkBot online ✅'));
+// 🔹 This must be first: respond instantly for Railway's health probe
+app.get('/', (_req, res) => {
+  res.status(200).type('text').send('OK');
+});
 
+// 🔹 Secondary health endpoint (for manual checks)
+app.get('/healthz', (_req, res) => res.status(200).type('text').send('ok'));
+
+// 🔹 API status summary
 app.get('/api/status', async (_req, res) => {
   res.json({
     ok: true,
@@ -98,6 +103,7 @@ app.get('/api/status', async (_req, res) => {
   });
 });
 
+// 🔹 Safe diagnostics
 app.get('/status', (_req, res) => {
   res.json({
     ok: true,
