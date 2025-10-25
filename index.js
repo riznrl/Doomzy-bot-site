@@ -18,6 +18,9 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { requireAuth, setDiscordClient } from './middleware/auth.js';
 
+// ✅ Add runtime registry import
+import { getRegistry } from './doomzy-controlbridge/runtime.js';
+
 const app = express();
 
 // --- Safety guards (crash protection) ---
@@ -80,7 +83,7 @@ const HEALTH_RESPONSE = 'ok';
   app.get(path, (_req, res) => res.status(200).type('text/plain').send(HEALTH_RESPONSE))
 );
 
-// --- JSON status endpoint for frontend diagnostics ---
+// ✅ Add runtime-aware JSON status endpoint
 app.get('/api/status', async (_req, res) => {
   res.json({
     ok: true,
@@ -90,7 +93,12 @@ app.get('/api/status', async (_req, res) => {
     guilds: client?.guilds?.cache?.size || 0,
     railway: IS_RAILWAY,
     hasDiscordToken: Boolean(process.env.DISCORD_BOT_TOKEN),
-    allowedUsers: ALLOWED_USER_IDS.length
+    allowedUsers: ALLOWED_USER_IDS.length,
+    // include dynamic runtime registry
+    runtimes: (() => {
+      try { return getRegistry?.() ?? {}; }
+      catch { return {}; }
+    })()
   });
 });
 
