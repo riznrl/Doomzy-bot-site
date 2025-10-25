@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node startup.js",
-    "dev": "NODE_ENV=development node startup.js",
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node index.js",
     "debug": "node hydraDebug.js",
     "test": "node hydraDebug.js",
     "controlbridge": "node doomzy-controlbridge/index.js",
@@ -28,5 +28,8 @@
     "passport-discord": "^0.1.4",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
