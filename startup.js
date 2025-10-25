@@ -52,7 +52,6 @@ coreStatus = '🟢 Running main startup logic...';
 // Original imports and code continue below
 import 'dotenv/config';
 import { runHydraCheck } from './hydraDebug.js';
-import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import DiscordStrategy from 'passport-discord';
