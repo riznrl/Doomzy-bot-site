@@ -10,20 +10,18 @@ import {
   GatewayIntentBits,
   REST,
   Routes,
-  SlashCommandBuilder,
   Partials
 } from 'discord.js';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import fs from 'fs';
 import { requireAuth, setDiscordClient } from './middleware/auth.js';
-
-// ✅ Add runtime registry import
 import { getRegistry } from './doomzy-controlbridge/runtime.js';
 
 const app = express();
 
-// --- Safety guards (crash protection) ---
+// --- Safety guards ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
 
@@ -36,9 +34,8 @@ const IS_RAILWAY = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PR
 // --- Parse ID list ---
 function parseIdList(v) {
   if (!v) return [];
-  try {
-    if (v.trim().startsWith('[')) return JSON.parse(v).map(String);
-  } catch (_) {}
+  try { if (v.trim().startsWith('[')) return JSON.parse(v).map(String); }
+  catch (_) {}
   return v.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
 }
 
@@ -75,15 +72,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors());
 
-// --- Health endpoints (prevents Railway SIGTERM restarts) ---
+// --- Health endpoints (prevents Railway restarts) ---
 console.log('🧠 Registering health endpoints...');
 const HEALTH_RESPONSE = 'ok';
-
-['/', '/health', '/healthz', '/status', '/up', '/ready', '/live'].forEach(path =>
-  app.get(path, (_req, res) => res.status(200).type('text/plain').send(HEALTH_RESPONSE))
+['/', '/health', '/healthz', '/status', '/up', '/ready', '/live'].forEach(p =>
+  app.get(p, (_req, res) => res.status(200).type('text/plain').send(HEALTH_RESPONSE))
 );
 
-// ✅ Add runtime-aware JSON status endpoint
+// --- Runtime-aware JSON status ---
 app.get('/api/status', async (_req, res) => {
   res.json({
     ok: true,
@@ -94,23 +90,39 @@ app.get('/api/status', async (_req, res) => {
     railway: IS_RAILWAY,
     hasDiscordToken: Boolean(process.env.DISCORD_BOT_TOKEN),
     allowedUsers: ALLOWED_USER_IDS.length,
-    // include dynamic runtime registry
-    runtimes: (() => {
-      try { return getRegistry?.() ?? {}; }
-      catch { return {}; }
-    })()
+    runtimes: (() => { try { return getRegistry?.() ?? {}; } catch { return {}; } })()
   });
 });
-
 console.log('✅ Health endpoints ready.');
 
-// --- Graceful shutdown logging ---
-process.on('SIGTERM', () => {
-  console.warn('⚠️ Received SIGTERM (likely Railway health check timeout)');
-});
-process.on('SIGINT', () => {
-  console.warn('⚠️ Received SIGINT — shutting down gracefully.');
-});
+// --- Graceful shutdown ---
+process.on('SIGTERM', () => console.warn('⚠️ Received SIGTERM (Railway check timeout)'));
+process.on('SIGINT', () => console.warn('⚠️ Received SIGINT — shutting down gracefully.'));
+
+// --- Dynamic command loader ---
+const commands = [];
+const commandHandlers = new Map();
+
+async function loadCommands() {
+  const commandPath = path.join(__dirname, 'bot-commands');
+  if (!fs.existsSync(commandPath)) {
+    console.warn('⚠️ No bot-commands folder found.');
+    return;
+  }
+
+  const files = fs.readdirSync(commandPath).filter(f => f.endsWith('.js'));
+  for (const file of files) {
+    try {
+      const mod = await import(`./bot-commands/${file}`);
+      if (!mod.data || !mod.execute) continue;
+      commands.push(mod.data.toJSON());
+      commandHandlers.set(mod.data.name, mod.execute);
+      console.log(`📦 Loaded command: /${mod.data.name}`);
+    } catch (err) {
+      console.error(`❌ Failed to load command ${file}:`, err);
+    }
+  }
+}
 
 // --- Discord bot setup ---
 let client = null;
@@ -132,20 +144,29 @@ async function initBot() {
 
     client = new Client({ intents, partials: [Partials.Channel] });
 
-    // Use new clientReady event to avoid deprecation warning
-    client.once('clientReady', () => {
-      console.log(`🤖 Logged in as ${client.user.tag}`);
-    });
+    client.once('clientReady', () =>
+      console.log(`🤖 Logged in as ${client.user.tag}`)
+    );
 
     client.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
-      if (interaction.commandName === 'ping') {
-        await interaction.reply('🏓 Pong from DoomzyInkBot!');
+      const handler = commandHandlers.get(interaction.commandName);
+      if (handler) {
+        try {
+          await handler(interaction);
+        } catch (err) {
+          console.error(`💥 Command /${interaction.commandName} failed:`, err);
+          await interaction.reply({
+            content: '❌ Something went wrong running this command.',
+            ephemeral: true
+          });
+        }
       }
     });
 
+    await loadCommands();
+    await registerCommands(commands);
     await client.login(token);
-    await registerCommands();
     setDiscordClient(client);
     return client;
   } catch (err) {
@@ -154,20 +175,14 @@ async function initBot() {
   }
 }
 
-// --- Slash Commands ---
-const commands = [
-  new SlashCommandBuilder().setName('ping').setDescription('Health check')
-];
+// --- Slash registration ---
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN || '');
 
-async function registerCommands() {
+async function registerCommands(cmds = []) {
   try {
     if (!process.env.CLIENT_ID) return;
-    await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: commands.map(c => c.toJSON()) }
-    );
-    console.log('✅ Slash commands registered');
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: cmds });
+    console.log(`✅ Registered ${cmds.length} slash command(s).`);
   } catch (e) {
     console.warn('⚠️ Slash registration skipped:', e.message);
   }
@@ -181,16 +196,16 @@ async function registerCommands() {
   else console.warn('⚠️ Bot initialization failed.');
 })();
 
-// --- Socket.IO keepalive logging ---
+// --- Socket.IO keepalive ---
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
   socket.on('disconnect', () => console.log('🔌 User disconnected:', socket.id));
 });
 
-// --- Keepalive loop (prevents Railway idle stop) ---
+// --- Keepalive loop ---
 setInterval(() => {
   console.log(`🫀 alive ${new Date().toISOString()}`);
-}, 300000); // every 5 minutes
+}, 300000);
 
 // --- Start server ---
 server.listen(PORT, '0.0.0.0', () => {
