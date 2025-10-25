@@ -77,13 +77,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health for Railway
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-// Minimal health endpoint for diagnostics bar
-app.get('/api/status', async (req, res) => {
+// ---- Improved API status route ----
+app.get('/api/status', async (_req, res) => {
   res.json({
     ok: true,
-    bot: client ? (client.user ? client.user.tag : 'connecting') : 'disabled',
+    bot: client?.user?.tag || 'offline',
     uptime: process.uptime(),
-    guilds: client ? client.guilds.cache.size : 0
+    guilds: client?.guilds?.cache?.size || 0
   });
 });
 
@@ -137,35 +137,51 @@ if (CLIENT_ID && REDIRECT_URI) {
 // ---- Discord bot setup ----
 let client = null;
 
+// ✅ Graceful-intent fallback + safer bot init
 async function initBot() {
   try {
     const token = env('DISCORD_BOT_TOKEN');
     if (!token) {
-      console.warn('No DISCORD_BOT_TOKEN provided, skipping bot initialization.');
+      console.warn('❌ No DISCORD_BOT_TOKEN provided, skipping bot initialization.');
       return null;
     }
 
-    client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
-      ],
-      partials: [Partials.Channel]
+    const baseIntents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
+    const optionalIntents = [GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers];
+
+    try {
+      client = new Client({
+        intents: [...baseIntents, ...optionalIntents],
+        partials: [Partials.Channel]
+      });
+    } catch (err) {
+      console.warn('⚠️ Privileged intents failed, falling back to minimal intents:', err.message);
+      client = new Client({
+        intents: baseIntents,
+        partials: [Partials.Channel]
+      });
+    }
+
+    client.once('ready', () => console.log(`🤖 Logged in as ${client.user.tag}`));
+
+    client.on('interactionCreate', async (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      if (interaction.commandName === 'ping') {
+        await interaction.reply('🏓 Pong from DoomzyInkBot!');
+      }
     });
 
-    client.on('ready', () => {
-      console.log(`🤖 Logged in as ${client.user.tag}`);
+    await client.login(token).catch(e => {
+      console.error('💥 Discord login failed:', e.message);
+      return null;
     });
 
-    await client.login(token);
-    await registerCommands();
+    await registerCommands().catch(e => console.warn('Slash registration skipped:', e.message));
+
     setDiscordClient(client);
-
     return client;
-  } catch (error) {
-    console.error('Failed to initialize bot (non-fatal):', error.message);
+  } catch (err) {
+    console.error('💥 initBot() failed (non-fatal):', err);
     return null;
   }
 }
@@ -199,11 +215,25 @@ function setupDiscordListeners(bot) {
   });
 }
 
+// ---- Register Slash Commands ----
+const commands = [
+  new SlashCommandBuilder().setName('ping').setDescription('Health check')
+];
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN || '');
+async function registerCommands() {
+  try {
+    if (!process.env.CLIENT_ID) return;
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands.map(c => c.toJSON()) });
+    console.log('✅ Slash commands registered');
+  } catch (e) {
+    console.warn('Slash registration skipped:', e.message);
+  }
+}
+
 // ✅ ---- Enhanced Debug Bot Login (Final Section) ----
 (async () => {
   try {
     const token = env('DISCORD_BOT_TOKEN');
-
     console.log('🧩 Starting DoomzyInkBot login sequence...');
     if (!token) {
       console.warn('❌ DISCORD_BOT_TOKEN is missing or empty! Check Railway variables.');
@@ -213,7 +243,6 @@ function setupDiscordListeners(bot) {
     }
 
     const bot = await initBot();
-
     if (bot) {
       console.log(`🤖 Bot ready as ${bot?.user?.tag ?? 'unknown'}`);
       setupDiscordListeners(bot);
