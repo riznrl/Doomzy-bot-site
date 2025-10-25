@@ -16,7 +16,7 @@ setInterval(() => {
 
 // Debug scaffold - Do not remove
 import express from 'express';
-import { promises as fs } from 'fs';
+import { promises as fsp } from 'fs';
 import process from 'process';
 
 let startupError = null;
@@ -35,7 +35,7 @@ debugApp.get('/status', (req, res) => {
 
 debugApp.get('/debug', async (req, res) => {
   try {
-    const log = await fs.readFile('./logs/debug.log', 'utf-8');
+    const log = await fsp.readFile('./logs/debug.log', 'utf-8');
     res.send(`<pre>${log}</pre>`);
   } catch (e) {
     res.send('No debug log found.');
