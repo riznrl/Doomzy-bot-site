@@ -1,3 +1,8 @@
+// ─────────────────────────────────────────────
+// 🧱 DOOMZYINK ALL-IN-ONE STARTUP
+// Clean, Railway-safe version
+// ─────────────────────────────────────────────
+
 // ---------- Non-destructive startup guards ----------
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err?.stack || err);
@@ -29,7 +34,6 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
-  AttachmentBuilder,
   Partials
 } from 'discord.js';
 import multer from 'multer';
@@ -46,9 +50,11 @@ const __dirname = path.dirname(__filename);
 let startupError = null;
 let coreStatus = '🟡 Not Started';
 
-// Debug express
+// ─────────────────────────────────────────────
+// 🧠 DEBUG EXPRESS SERVER (RAILWAY SAFE)
+// ─────────────────────────────────────────────
 export const debugApp = express();
-const DEBUG_PORT = process.env.PORT || 3000;
+const DEBUG_PORT = process.env.PORT_DEBUG || 8081;
 debugApp.get('/', (req, res) =>
   res.send(`<h1>Doomzy Debug</h1><p>Status: ${coreStatus}</p>${startupError ? `<pre>${startupError}</pre>` : 'No errors'}`)
 );
@@ -92,19 +98,7 @@ const env = (k, d = '') => process.env[k] ?? d;
 const PORT = Number(env('PORT', 8080));
 const SESSION_SECRET = env('SESSION_SECRET', 'dev_' + Math.random().toString(36).slice(2));
 
-const ALLOWED_USER_IDS = env('ALLOWED_USER_IDS')?.split(/[\s,]+/).filter(Boolean) || [];
-const PROFILES_CHANNEL_ID = env('PROFILES_CHANNEL_ID');
-const BADGES_CHANNEL_ID = env('BADGES_CHANNEL_ID');
-const RESOURCES_CHANNEL_ID = env('RESOURCES_CHANNEL_ID');
-const TASKS_CHANNEL_ID = env('TASKS_CHANNEL_ID');
-const STORAGE_CHANNEL_ID = env('STORAGE_CHANNEL_ID');
-const GLOBAL_FEED_CHANNEL_ID = env('GLOBAL_FEED_CHANNEL_ID');
-const SITE_ANNOUNCEMENTS_ID = env('SITE_ANNOUNCEMENTS_ID');
-const CLIENT_ID = env('CLIENT_ID');
-const CLIENT_SECRET = env('CLIENT_SECRET');
-const REDIRECT_URI = env('REDIRECT_URI', 'https://doomzyink.com/auth/callback');
-
-// --- EXPRESS ---
+// --- EXPRESS BASE APP ---
 const app = express();
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
@@ -116,7 +110,9 @@ app.use(
     secret: SESSION_SECRET,
     httpOnly: true,
     sameSite: 'lax',
-    secure: true
+    secure: true,
+    resave: false,
+    saveUninitialized: false
   })
 );
 app.use(express.json());
@@ -128,6 +124,10 @@ app.get('/healthz', (_, res) => res.status(200).send('ok'));
 app.get('/health', (_, res) => res.status(200).send('OK'));
 
 // ---- DISCORD LOGIN ----
+const CLIENT_ID = env('CLIENT_ID');
+const CLIENT_SECRET = env('CLIENT_SECRET');
+const REDIRECT_URI = env('REDIRECT_URI', 'https://doomzyink.com/auth/callback');
+
 if (CLIENT_ID && REDIRECT_URI) {
   passport.use(
     new DiscordStrategy(
@@ -137,7 +137,8 @@ if (CLIENT_ID && REDIRECT_URI) {
         callbackURL: REDIRECT_URI,
         scope: ['identify']
       },
-      (accessToken, refreshToken, profile, done) => done(null, { id: profile.id, username: profile.username, avatar: profile.avatar })
+      (accessToken, refreshToken, profile, done) =>
+        done(null, { id: profile.id, username: profile.username, avatar: profile.avatar })
     )
   );
   passport.serializeUser((user, done) => done(null, user));
@@ -215,9 +216,7 @@ io.on('connection', (socket) => {
 // ---- ROUTES ----
 app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// ... keep your API routes as written ...
-
-// ---- LAUNCH FIXED ----
+// ---- LAUNCH ----
 (async () => {
   try {
     server.listen(PORT, '0.0.0.0', () => {
