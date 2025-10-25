@@ -217,32 +217,43 @@ app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html
 
 // ... keep your API routes as written ...
 
-// ---- LAUNCH ----
+// ---- LAUNCH FIXED ----
 (async () => {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌐 Web server listening on :${PORT}`);
-    console.log(`🔧 ControlBridge monitoring active`);
-    coreStatus = '🟢 Server running';
-  });
-
   try {
-    const ctrl = await import('./doomzy-controlbridge/index.js');
-    console.log(`🌉 ControlBridge started on port ${process.env.CONTROLBRIDGE_PORT || 3001}`);
-  } catch (e) {
-    console.error('ControlBridge failed to start:', e?.stack || e);
-  }
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🌐 Web server listening on :${PORT}`);
+      console.log(`🔧 ControlBridge monitoring active`);
+      coreStatus = '🟢 Server running';
+    });
 
-  try {
-    const task = await import('./task-executor.js');
-    task.startTaskMonitoring();
-    console.log(`📋 Task Executor started`);
-  } catch (e) {
-    console.warn('⚠️ Task Executor failed:', e.message);
-  }
+    // ✅ Non-blocking ControlBridge launch
+    import('./doomzy-controlbridge/index.js')
+      .then(() => console.log(`🌉 ControlBridge started on port ${process.env.CONTROLBRIDGE_PORT || 3001}`))
+      .catch((e) => console.error('ControlBridge failed to start (non-fatal):', e?.stack || e));
 
-  await initBot();
+    // ✅ Non-blocking Task Executor
+    import('./task-executor.js')
+      .then((task) => {
+        if (typeof task.startTaskMonitoring === 'function') {
+          task.startTaskMonitoring();
+          console.log(`📋 Task Executor started`);
+        } else {
+          console.warn('⚠️ Task Executor missing startTaskMonitoring()');
+        }
+      })
+      .catch((err) => console.warn('⚠️ Task Executor failed to start:', err.message));
+
+    // ✅ Discord Bot
+    await initBot();
+
+    console.log('✅ Startup complete, all systems initialized.');
+  } catch (err) {
+    console.error('🚨 Startup failure:', err?.stack || err);
+    await logToControlBridge(`Startup error: ${err?.message || err}`, 'error');
+  }
 })();
 
+// ---- GRACEFUL SHUTDOWN ----
 process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received. Shutting down...');
   try {
