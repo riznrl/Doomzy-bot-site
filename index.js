@@ -13,6 +13,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { requireAuth, setDiscordClient } from './middleware/auth.js';
 
+const app = express();
+
 // --- Minimal crash guard so Railway doesn't 502 ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
@@ -89,7 +91,7 @@ app.get('/api/status', async (req, res) => {
 app.get('/status', (_req, res) => {
   res.json({
     ok: true,
-    hasDiscordToken: Boolean(process.env.DISCORD_TOKEN),
+    hasDiscordToken: Boolean(process.env.DISCORD_BOT_TOKEN),
     allowedUsers: ALLOWED_USER_IDS.length,
     profiles: Boolean(PROFILES_CHANNEL_ID),
     resources: Boolean(RESOURCES_CHANNEL_ID),
@@ -196,8 +198,9 @@ app.post('/api/signup', async (req, res) => {
 });
 
 // Example protected route (profile)
-app.get('/profile.html', requireAuth, async (req, res) => {
-  // render your profile HTML or send JSON; but never throw
+app.get('/profile.html', async (req, res, next) => {
+  await requireAuth(req, res, next);
+}, async (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'profile.html'));
 });
 
@@ -213,7 +216,9 @@ app.get('/socket.io/socket.io.js', (req, res) => {
 });
 
 // Dashboard route (protected)
-app.get('/dashboard', requireAuth, (req, res) => {
+app.get('/dashboard', async (req, res, next) => {
+  await requireAuth(req, res, next);
+}, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
@@ -237,7 +242,8 @@ async function initBot() {
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
       ],
       partials: [Partials.Channel]
     });
@@ -371,8 +377,24 @@ function mapAttachment(a){
   };
 }
 
+const requireAuthJson = async (req, res, next) => {
+  try {
+    const user = req.user || req.session?.user;
+    if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    if (ALLOWED_USER_IDS.length && !ALLOWED_USER_IDS.includes(String(user.id))) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
+    return next();
+  } catch (e) {
+    console.error('requireAuthJson error', e);
+    return res.status(401).json({ ok: false, error: 'Authentication error' });
+  }
+};
+
 // Upload -> Discord RESOURCES channel (direct upload)
-app.post('/api/resources/upload', requireAuthJson, upload.single('file'), async (req, res) => {
+app.post('/api/resources/upload', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ ok: false, error: 'no_file' });
     if (!client) return res.status(503).json({ ok: false, error: 'bot_not_available' });
@@ -485,7 +507,9 @@ app.post('/api/upload/manifest', async (req, res) => {
 // ---- Profile & Badges API (Discord as storage) ----
 
 // Profile API - Get current user's profile
-app.get('/api/profile', requireAuthJson, async (req, res) => {
+app.get('/api/profile', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const user = req.user || req.session.user;
     if (!user) return res.status(401).json({ error: 'not-authenticated' });
@@ -517,7 +541,9 @@ app.get('/api/profile', requireAuthJson, async (req, res) => {
 });
 
 // Badges registry
-app.get('/api/badges', requireAuthJson, async (req, res) => {
+app.get('/api/badges', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const { BADGES_CHANNEL_ID } = process.env;
     if (!BADGES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'BADGES_CHANNEL_ID not configured' });
@@ -531,7 +557,9 @@ app.get('/api/badges', requireAuthJson, async (req, res) => {
 });
 
 // Media proxy (for avatar/badges)
-app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
+app.get('/api/media/:messageId', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const { RESOURCES_CHANNEL_ID } = process.env;
     if (!RESOURCES_CHANNEL_ID) return res.status(500).json({ ok: false, error: 'RESOURCES_CHANNEL_ID not configured' });
@@ -554,7 +582,9 @@ app.get('/api/media/:messageId', requireAuthJson, async (req, res) => {
 });
 
 // Resources gallery
-app.get('/api/resources', requireAuthJson, async (req, res) => {
+app.get('/api/resources', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const chanId = RESOURCES_CHANNEL_ID;
     if (!chanId) return res.status(500).json({ error: 'missing RESOURCES_CHANNEL_ID' });
@@ -582,7 +612,9 @@ app.get('/api/resources', requireAuthJson, async (req, res) => {
 });
 
 // Resources list route
-app.get('/api/resources/list', requireAuthJson, async (req, res) => {
+app.get('/api/resources/list', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const ch = client.channels.cache.get(RESOURCES_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
@@ -606,7 +638,9 @@ app.get('/api/resources/list', requireAuthJson, async (req, res) => {
 });
 
 // Tasks add route
-app.post('/api/tasks/add', requireAuthJson, async (req, res) => {
+app.post('/api/tasks/add', async (req, res, next) => {
+  await requireAuthJson(req, res, next);
+}, async (req, res) => {
   try {
     const ch = client.channels.cache.get(TASKS_CHANNEL_ID);
     if (!ch) return res.status(500).json({ ok: false, error: 'no_channel' });
