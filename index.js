@@ -13,8 +13,6 @@ import {
   SlashCommandBuilder,
   Partials
 } from 'discord.js';
-import multer from 'multer';
-import fs from 'fs';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -22,21 +20,22 @@ import { requireAuth, setDiscordClient } from './middleware/auth.js';
 
 const app = express();
 
-// ---- Safety guards ----
+// --- Safety guards (crash protection) ---
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
 
-// ---- Environment helpers ----
+// --- Env helpers ---
 const env = (k, d = '') => process.env[k] ?? d;
 const PORT = Number(env('PORT', 8080));
 const SESSION_SECRET = env('SESSION_SECRET', 'dev_' + Math.random().toString(36).slice(2));
 const IS_RAILWAY = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PROJECT_ID;
 
-// ---- Parse channel and ID lists ----
+// --- Parse ID list ---
 function parseIdList(v) {
   if (!v) return [];
-  try { if (v.trim().startsWith('[')) return JSON.parse(v).map(String); }
-  catch (_) {}
+  try {
+    if (v.trim().startsWith('[')) return JSON.parse(v).map(String);
+  } catch (_) {}
   return v.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
 }
 
@@ -45,10 +44,11 @@ const CLIENT_ID = env('CLIENT_ID');
 const CLIENT_SECRET = env('CLIENT_SECRET');
 const REDIRECT_URI = env('REDIRECT_URI', 'https://doomzyink.com/auth/callback');
 
+// --- Path setup ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---- Express / Socket.IO ----
+// --- Express / Socket.IO setup ---
 const server = createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
@@ -63,8 +63,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    // Auto-detect Railway probe and disable HTTPS cookie restriction
-    secure: !IS_RAILWAY && process.env.NODE_ENV === 'production' 
+    secure: !IS_RAILWAY && process.env.NODE_ENV === 'production'
   }
 }));
 
@@ -73,23 +72,41 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors());
 
-// ---- Self-healing health checks ----
-app.get('/', (_req, res) => {
-  res.status(200).type('text/plain').send('ok');
-});
-app.get('/healthz', (_req, res) => res.status(200).send('ok'));
-app.get('/railway/health', (_req, res) => res.status(200).send('ok'));
+// --- Health endpoints (prevents Railway SIGTERM restarts) ---
+console.log('🧠 Registering health endpoints...');
+const HEALTH_RESPONSE = 'ok';
 
-// ---- Log any shutdown signals ----
+['/', '/health', '/healthz', '/status', '/up', '/ready', '/live'].forEach(path =>
+  app.get(path, (_req, res) => res.status(200).type('text/plain').send(HEALTH_RESPONSE))
+);
+
+// --- JSON status endpoint for frontend diagnostics ---
+app.get('/api/status', async (_req, res) => {
+  res.json({
+    ok: true,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    bot: client?.user?.tag || 'offline',
+    guilds: client?.guilds?.cache?.size || 0,
+    railway: IS_RAILWAY,
+    hasDiscordToken: Boolean(process.env.DISCORD_BOT_TOKEN),
+    allowedUsers: ALLOWED_USER_IDS.length
+  });
+});
+
+console.log('✅ Health endpoints ready.');
+
+// --- Graceful shutdown logging ---
 process.on('SIGTERM', () => {
-  console.warn('⚠️  Received SIGTERM (Railway health check likely failed)');
+  console.warn('⚠️ Received SIGTERM (likely Railway health check timeout)');
 });
 process.on('SIGINT', () => {
-  console.warn('⚠️  Received SIGINT — shutting down gracefully.');
+  console.warn('⚠️ Received SIGINT — shutting down gracefully.');
 });
 
-// ---- Discord bot ----
+// --- Discord bot setup ---
 let client = null;
+
 async function initBot() {
   try {
     const token = env('DISCORD_BOT_TOKEN');
@@ -104,11 +121,13 @@ async function initBot() {
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers
     ];
+
     client = new Client({ intents, partials: [Partials.Channel] });
 
-    client.once('clientReady', () =>
-      console.log(`🤖 Logged in as ${client.user.tag}`)
-    );
+    // Use new clientReady event to avoid deprecation warning
+    client.once('clientReady', () => {
+      console.log(`🤖 Logged in as ${client.user.tag}`);
+    });
 
     client.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
@@ -127,6 +146,7 @@ async function initBot() {
   }
 }
 
+// --- Slash Commands ---
 const commands = [
   new SlashCommandBuilder().setName('ping').setDescription('Health check')
 ];
@@ -135,27 +155,36 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN 
 async function registerCommands() {
   try {
     if (!process.env.CLIENT_ID) return;
-    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: commands.map(c => c.toJSON()) });
+    await rest.put(
+      Routes.applicationCommands(process.env.CLIENT_ID),
+      { body: commands.map(c => c.toJSON()) }
+    );
     console.log('✅ Slash commands registered');
   } catch (e) {
-    console.warn('Slash registration skipped:', e.message);
+    console.warn('⚠️ Slash registration skipped:', e.message);
   }
 }
 
-// ---- Boot sequence ----
+// --- Start Bot ---
 (async () => {
   console.log('🧩 Starting DoomzyInkBot login sequence...');
   const bot = await initBot();
   if (bot) console.log(`🤖 Bot ready as ${bot.user.tag}`);
+  else console.warn('⚠️ Bot initialization failed.');
 })();
 
-// ---- Keepalive loop ----
+// --- Socket.IO keepalive logging ---
+io.on('connection', (socket) => {
+  console.log('🔌 User connected:', socket.id);
+  socket.on('disconnect', () => console.log('🔌 User disconnected:', socket.id));
+});
+
+// --- Keepalive loop (prevents Railway idle stop) ---
 setInterval(() => {
   console.log(`🫀 alive ${new Date().toISOString()}`);
-}, 300000);
+}, 300000); // every 5 minutes
 
-// ---- Start server ----
+// --- Start server ---
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Web server listening on :${PORT} (Railway=${IS_RAILWAY})`);
 });
