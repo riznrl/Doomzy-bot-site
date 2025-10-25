@@ -8,10 +8,14 @@
     "dev": "NODE_ENV=development node startup.js",
     "debug": "node hydraDebug.js",
     "test": "node hydraDebug.js",
-    "register": "node utils/register-commands.js"
+    "controlbridge": "node doomzy-controlbridge/index.js",
+    "task-executor": "node task-executor.js",
+    "register": "node utils/register-commands.js",
+    "generate-token": "node generate-admin-token.js"
   },
   "dependencies": {
-    "axios": "^1.12.2",
+    "axios": "^1.6.2",
+    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "discord.js": "^14.14.1",

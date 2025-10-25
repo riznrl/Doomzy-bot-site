@@ -1,13 +1,15 @@
 
-DOOMZY CONTROLBRIDGE SETUP (Node.js Version)
+DOOMZY CONTROLBRIDGE SETUP (ES Module Version)
 
 1. Place the `doomzy-controlbridge/` folder in your project root.
 
-2. Install dependencies:
-   > npm install express body-parser
+2. Install dependencies (already included in main project):
+   > npm install  # express, body-parser already installed
 
 3. Run the bridge:
    > node doomzy-controlbridge/index.js
+   OR
+   > npm run controlbridge  # (add to package.json)
 
 4. Send logs to:
    POST http://localhost:3001/log
@@ -25,3 +27,14 @@ DOOMZY CONTROLBRIDGE SETUP (Node.js Version)
    for the latest changes and execute them.
 
 7. Discord bot should POST errors and alerts to /log.
+
+🆕 NEW ENDPOINTS:
+- GET /status - Bridge health check
+- GET /logs - View recent logs (last 50 lines)
+- GET /task - View current Windsurf task
+- DELETE /logs - Clear logs (requires x-admin-token header)
+
+🛡️ SECURITY:
+- Admin token required for log clearing: CONTROLBRIDGE_ADMIN_TOKEN
+- CORS enabled for external requests
+- Proper error handling and validation

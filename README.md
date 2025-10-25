@@ -38,6 +38,88 @@ These items are built or scheduled:
 
 ---
 
+## 🌉 ControlBridge Integration
+
+Doomzy includes a real-time command and log pipeline called **ControlBridge** that enables communication between your Discord bot, Windsurf, and Railway deployment.
+
+### Running ControlBridge
+
+```bash
+# Start the controlbridge server
+npm run controlbridge
+
+# Or run both main server and controlbridge
+npm start
+```
+
+### ControlBridge Endpoints
+
+- **POST /log** - Receive logs from Discord bot
+- **POST /windsurf-task** - Send tasks to Windsurf
+- **GET /status** - Bridge health check
+- **GET /logs** - View recent logs
+- **GET /task** - View current Windsurf task
+- **DELETE /logs** - Clear logs (requires admin token)
+
+### Bot Integration
+
+Update your Discord bot to send errors to ControlBridge:
+
+```javascript
+// Send errors to controlbridge
+fetch("http://localhost:3001/log", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    log: "Error in signup processing: " + error.message
+  })
+});
+
+// Send Windsurf tasks
+fetch("http://localhost:3001/windsurf-task", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    task: "# Windsurf: fix file upload bug\n\nThe upload fails when files are null."
+  })
+});
+```
+
+### Task Executor
+
+The system includes an automated **Task Executor** that monitors for new tasks and executes them automatically:
+
+```bash
+# Start the task executor (runs automatically with npm start)
+npm run task-executor
+
+# Or run independently
+node task-executor.js
+```
+
+**How it works:**
+1. Monitors `doomzy-controlbridge/windsurf-patch.md` every 10 seconds
+2. Detects when new tasks are posted via `/windsurf-task` endpoint
+3. Executes tasks automatically based on content analysis
+4. Logs all actions back to the ControlBridge system
+5. Updates task status checkboxes in the markdown file
+
+### Complete System Integration
+
+```bash
+# Start everything together (recommended)
+npm start
+
+# This runs:
+# ✅ Main web server on port 8080
+# ✅ Discord bot integration
+# ✅ HydraCheck validation on startup
+# ✅ ControlBridge API on port 3001
+# ✅ Task Executor monitoring
+```
+
+---
+
 ## 🧪 HydraCheck Debug System
 
 Doomzy includes a comprehensive debugging system called **HydraCheck** that validates all critical systems before deployment.
