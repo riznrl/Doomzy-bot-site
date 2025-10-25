@@ -28,7 +28,7 @@ process.on('uncaughtException', (err) => console.error('[uncaughtException]', er
 
 // --- Env helpers ---
 const env = (k, d = '') => process.env[k] ?? d;
-const PORT = Number(env('PORT', 8080)); // <-- critical fix for Railway
+const PORT = process.env.PORT || 8080; // ✅ Use dynamic port for Railway
 const SESSION_SECRET = env('SESSION_SECRET', 'dev_' + Math.random().toString(36).slice(2));
 
 // --- Helpers ---
@@ -85,6 +85,9 @@ app.use(cors());
 
 // --- Health and status routes ---
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
+
+// ✅ Add default root endpoint to satisfy Railway health checks
+app.get('/', (_req, res) => res.status(200).send('DoomzyInkBot online ✅'));
 
 app.get('/api/status', async (_req, res) => {
   res.json({
@@ -176,9 +179,7 @@ async function initBot() {
       });
     }
 
-    client.once('ready', () =>
-      console.log(`🤖 Logged in as ${client.user.tag}`)
-    );
+    client.once('ready', () => console.log(`🤖 Logged in as ${client.user.tag}`));
 
     client.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
