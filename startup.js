@@ -1,4 +1,55 @@
-// startup.js - Main server with HydraCheck and ControlBridge integration
+// ---------- Non-destructive startup guards ----------
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err?.stack || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason?.stack || reason);
+});
+
+// Heartbeat so Railway health checks don't recycle us before logs print
+setInterval(() => {
+  try {
+    console.log('🫀 alive', new Date().toISOString());
+  } catch {}
+}, 15000);
+// -----------------------------------------------------
+
+// Debug scaffold - Do not remove
+import express from 'express';
+import { promises as fs } from 'fs';
+import process from 'process';
+
+let startupError = null;
+let coreStatus = '🟡 Not Started';
+
+export const debugApp = express();
+const DEBUG_PORT = process.env.PORT || 3000;
+
+debugApp.get('/', (req, res) => {
+  res.send(`<h1>Doomzy Debug</h1><p>Status: ${coreStatus}</p>${startupError ? `<pre>${startupError}</pre>` : 'No errors'}`);
+});
+
+debugApp.get('/status', (req, res) => {
+  res.json({ status: coreStatus, error: startupError, time: new Date().toISOString() });
+});
+
+debugApp.get('/debug', async (req, res) => {
+  try {
+    const log = await fs.readFile('./logs/debug.log', 'utf-8');
+    res.send(`<pre>${log}</pre>`);
+  } catch (e) {
+    res.send('No debug log found.');
+  }
+});
+
+const debugServer = debugApp.listen(DEBUG_PORT, () => {
+  console.log(`🧠 Debug server listening on port ${DEBUG_PORT}`);
+});
+
+// Wrap the rest of the startup file in a try/catch
+coreStatus = '🟢 Running main startup logic...';
+
+// Original imports and code continue below
 import 'dotenv/config';
 import { runHydraCheck } from './hydraDebug.js';
 import express from 'express';
@@ -40,19 +91,6 @@ async function logToControlBridge(message, type = 'error') {
     console.error('ControlBridge logging failed:', err.message);
   }
 }
-
-// Enhanced error handling with controlbridge logging
-process.on('unhandledRejection', async (err) => {
-  const errorMsg = `Unhandled Promise Rejection: ${err.message}`;
-  console.error('[unhandledRejection]', err);
-  await logToControlBridge(errorMsg, 'critical');
-});
-
-process.on('uncaughtException', async (err) => {
-  const errorMsg = `Uncaught Exception: ${err.message}`;
-  console.error('[uncaughtException]', err);
-  await logToControlBridge(errorMsg, 'critical');
-});
 
 // --- Env helpers ---
 const env = (k, d = '') => process.env[k] ?? d;
@@ -790,26 +828,41 @@ function mapAttachment(a){
 // Disk upload temp (site-side uploads -> bot forwards to Discord storage channel)
 const upload = multer({ dest: 'uploads/' });
 
+console.log('🛠 initializing routes & middleware…');
+
 // Add logging to signup API
-const originalSignupHandler = app._router.stack.find(layer => layer.route?.path === '/api/signup')?.route?.stack[0]?.handle;
-if (originalSignupHandler) {
-  app.post('/api/signup', async (req, res) => {
-    await logToControlBridge(`Signup request from ${req.body.discordId} (${req.body.email})`, 'info');
-    originalSignupHandler(req, res);
-  });
+try {
+  const stack = app?._router?.stack || [];
+  const signupLayer = stack.find(layer => layer?.route?.path === '/api/signup');
+  const originalSignupHandler = signupLayer?.route?.stack?.[0]?.handle;
+  if (originalSignupHandler) {
+    app.post('/api/signup', async (req, res) => {
+      try {
+        await logToControlBridge(`Signup request from ${req.body?.discordId} (${req.body?.email})`, 'info');
+      } catch (e) { console.warn('logToControlBridge failed (non-fatal):', e?.message || e); }
+      return originalSignupHandler(req, res);
+    });
+  } else {
+    console.warn('Signup route not found yet; skipping debug wrapper.');
+  }
+} catch (e) {
+  console.warn('Signup wrapper init skipped (non-fatal):', e?.message || e);
 }
 
-// Start server
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🌐 Web server listening on :${PORT}`);
+  try {
+    console.log(`🌐 Web server listening on :${PORT}`);
+  } catch {}
   console.log(`🔧 ControlBridge monitoring: Active (checking every 10s)`);
+  coreStatus = '🟢 Server running';
 
-  // Start ControlBridge server in background
-  import('./doomzy-controlbridge/index.js').then(() => {
+    // Start ControlBridge server in background
+  try {
+    await import('./doomzy-controlbridge/index.js');
     console.log(`🌉 ControlBridge started on port ${process.env.CONTROLBRIDGE_PORT || 3001}`);
-  }).catch(err => {
-    console.warn('⚠️ ControlBridge failed to start:', err.message);
-  });
+  } catch (e) {
+    console.error('ControlBridge failed to start (non-fatal):', e?.stack || e);
+  }
 
   // Start Task Executor in background
   import('./task-executor.js').then((module) => {
@@ -818,4 +871,17 @@ server.listen(PORT, '0.0.0.0', () => {
   }).catch(err => {
     console.warn('⚠️ Task Executor failed to start:', err.message);
   });
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🛑 Received SIGTERM. Shutting down gracefully...');
+  try {
+    debugServer.close();
+    server.close();
+    process.exit(0);
+  } catch (e) {
+    console.error('Error during shutdown:', e);
+    process.exit(1);
+  }
 });
