@@ -9,6 +9,7 @@
     "bridge": "node doomzy-controlbridge/index.js",
     "register": "node utils/register-commands.js",
     "generate-token": "node generate-admin-token.js",
+    "autodev": "node doomzy-controlbridge/doomzy-autodev.js",
     "postinstall": "echo '✅ Dependencies installed successfully.'"
   },
   "dependencies": {
@@ -26,7 +27,8 @@
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "socket.io": "^4.7.5",
-    "socket.io-client": "^4.7.5"
+    "socket.io-client": "^4.7.5",
+    "octokit": "^3.2.1"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -36,6 +38,8 @@
     "express",
     "railway",
     "bot",
-    "doomzyink"
+    "doomzyink",
+    "autodev",
+    "github"
   ]
 }
