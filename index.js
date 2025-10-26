@@ -19,6 +19,13 @@ import fs from 'fs';
 import { requireAuth, setDiscordClient } from './middleware/auth.js';
 import { getRegistry } from './doomzy-controlbridge/runtime.js';
 
+// 🧠 AutoDev imports
+import {
+  registerAutoDevCommands,
+  handleAutoDevInteraction,
+  logToDiscord
+} from './doomzy-controlbridge/doomzy-autodev.js';
+
 const app = express();
 
 // --- Safety guards ---
@@ -144,11 +151,15 @@ async function initBot() {
 
     client = new Client({ intents, partials: [Partials.Channel] });
 
-    client.once('clientReady', () =>
-      console.log(`🤖 Logged in as ${client.user.tag}`)
-    );
+    client.once('clientReady', async () => {
+      console.log(`🤖 Logged in as ${client.user.tag}`);
+      await logToDiscord(client, `Bot initialized and listening.`);
+    });
 
     client.on('interactionCreate', async (interaction) => {
+      // AutoDev handler
+      await handleAutoDevInteraction(client, interaction);
+
       if (!interaction.isChatInputCommand()) return;
       const handler = commandHandlers.get(interaction.commandName);
       if (handler) {
@@ -164,8 +175,11 @@ async function initBot() {
       }
     });
 
+    // Load local and AutoDev commands
     await loadCommands();
     await registerCommands(commands);
+    await registerAutoDevCommands(token);
+
     await client.login(token);
     setDiscordClient(client);
     return client;
@@ -182,7 +196,7 @@ async function registerCommands(cmds = []) {
   try {
     if (!process.env.CLIENT_ID) return;
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: cmds });
-    console.log(`✅ Registered ${cmds.length} slash command(s).`);
+    console.log(`✅ Registered ${cmds.length} local slash command(s).`);
   } catch (e) {
     console.warn('⚠️ Slash registration skipped:', e.message);
   }
